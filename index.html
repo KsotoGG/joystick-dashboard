@@ -514,8 +514,8 @@ function parseSal(s){
 // ═══════════════════════════════════════════
 async function fetchTab(year){
   const gid = YEAR_GID[year];
-  // Use export URL with the real spreadsheet ID
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+  // Use the published URL with gid parameter
+  const url = `https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?output=csv&gid=${gid}`;
   const r = await fetch(url);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.text();
