@@ -788,116 +788,32 @@ async function loadData(){
     ldBar(10+loaded/YEARS.length*75);
   }
 
-  ldBar(88); ldMsg('Consolidando colaboradores...');
+  ldBar(88); ldMsg('Procesando colaboradores...');
 
-  // ── CONSOLIDACIÓN POR NOMBRE DE COLABORADOR ──
-  // Clave única = nombre del colaborador (normalizado)
-  // Cada persona aparece UNA sola vez en RAW
-  // Sus salarios se guardan por año: salariosPorAnio[año][0..11]
-  // Lógica: si tiene salario > 0 en un mes → estaba activo ese mes
-  //         si tiene 0 o vacío → no estaba activo ese mes
-  //         si tiene fecha de salida → salió en esa fecha
+  // ── SIN CONSOLIDACIÓN ──
+  // RAW = todas las filas de todos los años tal como vienen
+  // Cada fila tiene _year para saber a qué año pertenece
+  // El filtro de año usa _year directamente
+  // headcountMesAnio cuenta filas con salarios[mes] > 0 para ese _year
+  // Una persona que aparece en 2022, 2023 y 2024 = 3 filas, cada una independiente
+  // Esto es correcto porque en cada año tiene su propio salario y estado
 
-  const mapa = {};
-
+  RAW = [];
   YEARS.forEach(year => {
     (rawPorAnio[year]||[]).forEach(r => {
-      // Clave: solo nombre del colaborador normalizado
-      const clave = r.colaborador.toLowerCase().trim().replace(/\s+/g,' ');
-      if(!clave || clave.length < 2) return;
-
-      if(!mapa[clave]){
-        mapa[clave] = {
-          colaborador:  r.colaborador,
-          empresa:      r.empresa,
-          pais:         r.pais,
-          contrato:     r.contrato,
-          depto:        r.depto,
-          puesto:       r.puesto,
-          genero:       r.genero,
-          estado:       r.estado,
-          hijos:        r.hijos,
-          grado:        r.grado,
-          ingles:       r.ingles,
-          provincia:    r.provincia,
-          canton:       r.canton,
-          nacDate:      r.nacDate,
-          edad:         r.edad,
-          ingresoDate:  r.ingresoDate,
-          salidaDate:   null,
-          motivoSalida: '',
-          razonSalida:  '',
-          destino:      '',
-          activo:       true,
-          antiguedadMeses: 0,
-          _años:        [],
-          salariosPorAnio: {},
-        };
-      }
-
-      const col = mapa[clave];
-
-      // Agregar año a la lista
-      if(!col._años.includes(year)) col._años.push(year);
-
-      // Guardar salarios de este año tal como vienen del sheet
-      // 0 = no activo ese mes, >0 = activo ese mes
-      col.salariosPorAnio[year] = {};
-      for(let mi=0; mi<12; mi++){
-        col.salariosPorAnio[year][mi] = r.salarios[mi] || 0;
-      }
-
-      // Fecha de ingreso: la más antigua
+      // salariosPorAnio para compatibilidad con funciones existentes
+      r.salariosPorAnio = { [year]: {...r.salarios} };
+      r._años = [year];
+      // Recalcular antigüedad
       if(r.ingresoDate){
-        if(!col.ingresoDate
-          || r.ingresoDate.y < col.ingresoDate.y
-          || (r.ingresoDate.y===col.ingresoDate.y && r.ingresoDate.m < col.ingresoDate.m)){
-          col.ingresoDate = r.ingresoDate;
-        }
+        const ref = r.salidaDate || {y:new Date().getFullYear(), m:new Date().getMonth()};
+        r.antiguedadMeses = Math.max(0, (ref.y-r.ingresoDate.y)*12+(ref.m-r.ingresoDate.m));
       }
-
-      // Fecha de salida: si existe en CUALQUIER año
-      if(r.salidaDate){
-        col.salidaDate   = r.salidaDate;
-        col.motivoSalida = r.motivoSalida || col.motivoSalida;
-        col.razonSalida  = r.razonSalida  || col.razonSalida;
-        col.destino      = r.destino      || col.destino;
-      }
-
-      // Actualizar datos demográficos con el año más reciente
-      if(year === Math.max(...col._años)){
-        col.empresa   = r.empresa   || col.empresa;
-        col.pais      = r.pais      || col.pais;
-        col.contrato  = r.contrato  || col.contrato;
-        col.depto     = r.depto     || col.depto;
-        col.puesto    = r.puesto    || col.puesto;
-        col.provincia = r.provincia || col.provincia;
-        col.canton    = r.canton    || col.canton;
-        col.estado    = r.estado    || col.estado;
-        col.grado     = r.grado     || col.grado;
-        col.ingles    = r.ingles    || col.ingles;
-        if(r.hijos !== undefined) col.hijos = r.hijos;
-        if(r.edad)   col.edad  = r.edad;
-        if(r.genero) col.genero = r.genero;
-      }
+      RAW.push(r);
     });
   });
 
-  // Finalizar: calcular activo y antigüedad
-  RAW = Object.values(mapa).map(col => {
-    col._años.sort((a,b)=>a-b);
-
-    // Activo = sin fecha de salida
-    col.activo = !col.salidaDate;
-
-    // Antigüedad en meses desde ingreso
-    if(col.ingresoDate){
-      const ref = col.salidaDate || {y:new Date().getFullYear(), m:new Date().getMonth()};
-      col.antiguedadMeses = Math.max(0, (ref.y-col.ingresoDate.y)*12 + (ref.m-col.ingresoDate.m));
-    }
-
-    return col;
-  });
+  console.log(`[RAW] Total filas: ${RAW.length} en ${YEARS.length} años`);
 
   if(!RAW.length){
     document.getElementById('loader').innerHTML = `
@@ -949,21 +865,21 @@ function fillSel(id, vals, label){
 }
 
 function populateFilters(){
-  fillSel('selDepto', uniq('depto'), 'Depto');
-  fillSel('selContrato', uniq('contrato'), 'Contrato');
-  fillSel('selPais', uniq('pais'), 'País');
-  fillSel('selProv', uniq('provincia'), 'Provincia');
+  fillSel('selDepto',   uniq('depto'),     'Depto');
+  fillSel('selContrato',uniq('contrato'),  'Contrato');
+  fillSel('selPais',    uniq('pais'),      'País');
+  fillSel('selProv',    uniq('provincia'), 'Provincia');
 
-  const total   = RAW.length;
-  const activos = RAW.filter(r=>r.activo).length;
-  const salidas = RAW.filter(r=>!r.activo && r.salidaDate).length;
-  const yrs     = [...new Set(RAW.flatMap(r=>r._años||[]))].sort();
+  const total  = RAW.length;
+  const activos= RAW.filter(r=>r.activo).length;
+  const salidas= RAW.filter(r=>!r.activo&&r.salidaDate).length;
+  const yrs    = [...new Set(RAW.map(r=>r._year))].sort();
 
-  document.getElementById('chipTotal').textContent   = total.toLocaleString()+' colaboradores únicos';
+  document.getElementById('chipTotal').textContent   = total.toLocaleString()+' registros (todos los años)';
   document.getElementById('chipAnios').textContent   = yrs.join(', ');
   document.getElementById('chipActivos').textContent = activos.toLocaleString()+' activos';
   document.getElementById('chipSalidas').textContent = salidas.toLocaleString()+' salidas';
-  document.getElementById('srcTxt').textContent      = `Google Sheets · ${total.toLocaleString()} colaboradores únicos · ${yrs.length} año(s)`;
+  document.getElementById('srcTxt').textContent      = `Google Sheets · ${yrs.length} año(s) · ${total} filas totales`;
 }
 
 // ══════════════════════════════════════════════
@@ -1135,39 +1051,25 @@ function applyFilters(){
   const mesesActivos = getMesesActivos();
 
   FILTERED = RAW.filter(r => {
-    // Filtro de año: incluir persona solo si tuvo salario > 0 en algún mes de ese año
-    if(year !== 'all'){
-      const y = parseInt(year);
-      const sal = r.salariosPorAnio && r.salariosPorAnio[y];
-      if(!sal) return false;
-      // Debe tener AL MENOS un mes con salario en ese año
-      const tieneAlgoEseAnio = Object.values(sal).some(v => v > 0);
-      if(!tieneAlgoEseAnio) return false;
-    }
-
-    // Filtros de mes: si hay meses seleccionados, debe tener salario en esos meses
-    if(mesesActivos !== null && year !== 'all'){
-      const y = parseInt(year);
-      const sal = r.salariosPorAnio && r.salariosPorAnio[y];
-      if(!sal) return false;
-      const tieneMes = mesesActivos.some(mi => (sal[mi]||0) > 0);
+    // Filtro de año: usar _year directamente
+    if(year !== 'all' && r._year !== parseInt(year)) return false;
+    // Filtro de mes: tiene salario en al menos uno de los meses activos
+    if(mesesActivos !== null){
+      const tieneMes = mesesActivos.some(mi => (r.salarios[mi]||0) > 0);
       if(!tieneMes) return false;
     }
-
-    // Filtros demográficos
-    if(depto   !== 'all' && r.depto     !== depto)   return false;
+    if(depto   !== 'all' && r.depto     !== depto)    return false;
     if(contrato!== 'all' && r.contrato  !== contrato) return false;
-    if(gen     !== 'all' && r.genero    !== gen)      return false;
-    if(pais    !== 'all' && r.pais      !== pais)     return false;
-    if(prov    !== 'all' && r.provincia !== prov)     return false;
-
+    if(gen     !== 'all' && r.genero    !== gen)       return false;
+    if(pais    !== 'all' && r.pais      !== pais)      return false;
+    if(prov    !== 'all' && r.provincia !== prov)      return false;
     return true;
   });
 
-  // Actualizar chip de período
+  console.log(`[FILTER] Año:${year} → ${FILTERED.length} filas`);
+
   const chipP = document.getElementById('chipPeriodo');
   if(chipP) chipP.textContent = getPeriodoLabel();
-
   destroyCharts();
   renderAll();
 }
@@ -1231,27 +1133,25 @@ function renderAll(){
 
 // ══════════════════════════════════════════════
 // FUNCIÓN CENTRAL: headcount de un mes/año específico
-// Regla: contar personas que tienen salario > 0 en ese mes de ese año
-// Es exactamente el número de celdas con valor en el sheet
+// Cuenta filas con _year===year y salarios[mes]>0
+// = exactamente las celdas con valor en el sheet
 // ══════════════════════════════════════════════
 function headcountMesAnio(rows, year, mes){
   return rows.filter(r =>
-    r.salariosPorAnio &&
-    r.salariosPorAnio[year] &&
-    (r.salariosPorAnio[year][mes] || 0) > 0
+    r._year === year && (r.salarios[mes]||0) > 0
   ).length;
 }
 
-// Headcount cierre de año = headcount del último mes con datos en ese año
+// Headcount cierre de año = último mes con datos
 function headcountCierreAnio(rows, year){
-  for(let mi = 11; mi >= 0; mi--){
+  for(let mi=11;mi>=0;mi--){
     const hc = headcountMesAnio(rows, year, mi);
-    if(hc > 0){
+    if(hc>0){
       console.log(`[HC] Cierre año ${year}: mes ${mi} (${MOL[mi]}) = ${hc} personas`);
-      return { hc, mes: mi };
+      return {hc, mes:mi};
     }
   }
-  return { hc: 0, mes: -1 };
+  return {hc:0, mes:-1};
 }
 
 // ══════════════════════════════════════════════
@@ -1265,44 +1165,41 @@ function renderKPIs(){
   let activos, activosMes, salidas, ingresos, planTotal, planMes;
 
   if(yr === 'all'){
-    const maxY   = Math.max(...YEARS.filter(y => F.some(r => r.salariosPorAnio && r.salariosPorAnio[y])));
-    const cierre = headcountCierreAnio(F, maxY);
+    // Todos los años: usar el año más reciente con datos
+    const maxY = Math.max(...YEARS.filter(y => F.some(r => r._year===y)));
+    const rowsMaxY = F.filter(r=>r._year===maxY);
+    const cierre = headcountCierreAnio(rowsMaxY, maxY);
     activos    = cierre.hc;
-    activosMes = cierre.mes >= 0 ? `Cierre ${MOL[cierre.mes]}-${maxY}` : 'Todos los años';
-    salidas    = F.filter(r => r.salidaDate).length;
-    ingresos   = F.filter(r => r.ingresoDate).length;
-    planTotal  = F.reduce((s,r) => s + YEARS.reduce((ys,y) => {
-      if(!r.salariosPorAnio||!r.salariosPorAnio[y]) return ys;
-      return ys + MO.reduce((ms,_,mi) => ms+(r.salariosPorAnio[y][mi]||0),0);
-    },0),0);
-    planMes = planTotal / (YEARS.length*12) || 0;
+    activosMes = cierre.mes>=0 ? `Cierre ${MOL[cierre.mes]}-${maxY}` : 'Todos los años';
+    salidas    = F.filter(r=>r.salidaDate).length;
+    ingresos   = F.filter(r=>r.ingresoDate).length;
+    planTotal  = F.reduce((s,r)=>s+Object.values(r.salarios).reduce((a,b)=>a+b,0),0);
+    planMes    = planTotal/(YEARS.length*12)||0;
   } else {
     const y = parseInt(yr);
-    if(mesesActivos && mesesActivos.length > 0){
+    const rowsY = F.filter(r=>r._year===y);
+    if(mesesActivos && mesesActivos.length>0){
       const lastMes = mesesActivos[mesesActivos.length-1];
-      activos    = headcountMesAnio(F, y, lastMes);
+      activos    = headcountMesAnio(rowsY, y, lastMes);
       activosMes = `${MOL[lastMes]}-${yr}`;
     } else {
-      const cierre = headcountCierreAnio(F, y);
+      const cierre = headcountCierreAnio(rowsY, y);
       activos    = cierre.hc;
-      activosMes = cierre.mes >= 0 ? `Cierre ${MOL[cierre.mes]}-${yr}` : yr;
+      activosMes = cierre.mes>=0 ? `Cierre ${MOL[cierre.mes]}-${yr}` : yr;
     }
-    salidas = F.filter(r => {
-      if(!r.salidaDate || r.salidaDate.y !== y) return false;
-      if(mesesActivos && !mesesActivos.includes(r.salidaDate.m)) return false;
+    salidas = rowsY.filter(r=>{
+      if(!r.salidaDate||r.salidaDate.y!==y) return false;
+      if(mesesActivos&&!mesesActivos.includes(r.salidaDate.m)) return false;
       return true;
     }).length;
-    ingresos = F.filter(r => {
-      if(!r.ingresoDate || r.ingresoDate.y !== y) return false;
-      if(mesesActivos && !mesesActivos.includes(r.ingresoDate.m)) return false;
+    ingresos = rowsY.filter(r=>{
+      if(!r.ingresoDate||r.ingresoDate.y!==y) return false;
+      if(mesesActivos&&!mesesActivos.includes(r.ingresoDate.m)) return false;
       return true;
     }).length;
-    const mesesPlan = mesesActivos !== null ? mesesActivos : MO.map((_,i)=>i);
-    planTotal = F.reduce((s,r) => {
-      if(!r.salariosPorAnio||!r.salariosPorAnio[y]) return s;
-      return s + mesesPlan.reduce((ms,mi) => ms+(r.salariosPorAnio[y][mi]||0),0);
-    },0);
-    planMes = mesesPlan.length > 0 ? planTotal/mesesPlan.length : 0;
+    const mesesPlan = mesesActivos!==null ? mesesActivos : MO.map((_,i)=>i);
+    planTotal = rowsY.reduce((s,r)=>s+mesesPlan.reduce((ms,mi)=>ms+(r.salarios[mi]||0),0),0);
+    planMes   = mesesPlan.length>0 ? planTotal/mesesPlan.length : 0;
   }
 
   // Debug en consola del navegador
@@ -1369,9 +1266,7 @@ function renderKPIs(){
     if(!k.spark) return;
     const ctx = document.getElementById('spk'+i); if(!ctx) return;
     const y = yr==='all' ? Math.max(...YEARS) : parseInt(yr);
-    const data = MO.map((_,mi) =>
-      F.filter(r => r.salariosPorAnio && r.salariosPorAnio[y] && (r.salariosPorAnio[y][mi]||0) > 0).length
-    );
+    const data = MO.map((_,mi) => headcountMesAnio(F, y, mi));
     const mesesActivos = getMesesActivos();
     const borderColors = MO.map((_,mi) =>
       mesesActivos===null || mesesActivos.includes(mi) ? '#2dd4bf' : '#2dd4bf44'
@@ -1398,40 +1293,29 @@ function fmtN(n){
 function renderTend(){
   const F  = FILTERED;
   const yr = document.getElementById('selYear').value;
-
   let datasets;
-
-  if(yr === 'all'){
-    // Mostrar línea por cada año disponible
-    datasets = YEARS.map(y => ({
-      label: String(y),
-      data:  MO.map((_,mi) => headcountMesAnio(F, y, mi)),
-      borderColor: YCOL[y],
-      bg: 'transparent', fill: false,
-      bw: y===2026?2.5:1.5, pr: y===2026?3:2
+  if(yr==='all'){
+    datasets = YEARS.map(y=>({
+      label:String(y),
+      data: MO.map((_,mi)=>headcountMesAnio(F,y,mi)),
+      borderColor:YCOL[y], bg:'transparent', fill:false,
+      bw:y===2026?2.5:1.5, pr:y===2026?3:2
     }));
-    document.getElementById('badgeTend').textContent = 'Todos los años';
+    document.getElementById('badgeTend').textContent='Todos los años';
   } else {
-    const y = parseInt(yr);
-    // Headcount por mes = celdas con salario en ese mes de ese año
-    const hc  = MO.map((_,mi) => headcountMesAnio(F, y, mi));
-    // Ingresos = personas cuya fecha ingreso cae en ese mes/año
-    const ing = MO.map((_,mi) =>
-      F.filter(r => r.ingresoDate && r.ingresoDate.y===y && r.ingresoDate.m===mi).length
-    );
-    // Salidas = personas cuya fecha salida cae en ese mes/año
-    const sal = MO.map((_,mi) =>
-      F.filter(r => r.salidaDate && r.salidaDate.y===y && r.salidaDate.m===mi).length
-    );
-    datasets = [
-      {label:'Headcount', data:hc,  borderColor:'#2dd4bf', bg:'#2dd4bf18', fill:true},
-      {label:'Ingresos',  data:ing, borderColor:'#22d3a0', bg:'transparent', fill:false, dash:[5,3]},
-      {label:'Salidas',   data:sal, borderColor:'#f87171', bg:'transparent', fill:false, dash:[3,3]},
+    const y=parseInt(yr);
+    const rowsY=F.filter(r=>r._year===y);
+    const hc =MO.map((_,mi)=>headcountMesAnio(rowsY,y,mi));
+    const ing=MO.map((_,mi)=>rowsY.filter(r=>r.ingresoDate&&r.ingresoDate.y===y&&r.ingresoDate.m===mi).length);
+    const sal=MO.map((_,mi)=>rowsY.filter(r=>r.salidaDate&&r.salidaDate.y===y&&r.salidaDate.m===mi).length);
+    datasets=[
+      {label:'Headcount',data:hc, borderColor:'#2dd4bf',bg:'#2dd4bf18',fill:true},
+      {label:'Ingresos', data:ing,borderColor:'#22d3a0',bg:'transparent',fill:false,dash:[5,3]},
+      {label:'Salidas',  data:sal,borderColor:'#f87171',bg:'transparent',fill:false,dash:[3,3]},
     ];
-    document.getElementById('badgeTend').textContent = getPeriodoLabel();
+    document.getElementById('badgeTend').textContent=getPeriodoLabel();
   }
-
-  CHARTS.tend = mkLine('cTend', MOL, datasets);
+  CHARTS.tend=mkLine('cTend',MOL,datasets);
 }
 
 // ══════════════════════════════════════════════
@@ -1660,42 +1544,29 @@ function renderHeatmap(){
 // PLANILLA — suma real según período seleccionado
 // ══════════════════════════════════════════════
 function renderPlanilla(){
-  const F  = FILTERED;
-  const yr = document.getElementById('selYear').value;
-  const mesesActivos   = getMesesActivos();
-  const aniosFiltrados = yr==='all' ? YEARS : [parseInt(yr)];
-  const mesesPlan      = mesesActivos !== null ? mesesActivos : MO.map((_,i)=>i);
+  const F=FILTERED;
+  const yr=document.getElementById('selYear').value;
+  const mesesActivos=getMesesActivos();
+  const mesesPlan=mesesActivos!==null?mesesActivos:MO.map((_,i)=>i);
 
-  // Suma de salarios por mes (todos los años del filtro combinados)
-  const data = MO.map((_,mi) =>
-    F.reduce((sum, r) =>
-      sum + aniosFiltrados.reduce((ys, y) =>
-        ys + ((r.salariosPorAnio&&r.salariosPorAnio[y]&&r.salariosPorAnio[y][mi])||0)
-      , 0)
-    , 0)
-  );
+  // Suma por mes de todos los registros filtrados
+  const data=MO.map((_,mi)=>F.reduce((s,r)=>s+(r.salarios[mi]||0),0));
+  const bgColors=data.map((_,mi)=>mesesActivos===null||mesesActivos.includes(mi)?'#2dd4bf55':'#2dd4bf18');
+  const bdColors=data.map((_,mi)=>mesesActivos===null||mesesActivos.includes(mi)?'#2dd4bf':'#2dd4bf44');
 
-  const bgColors = data.map((_,mi) =>
-    mesesActivos===null||mesesActivos.includes(mi) ? '#2dd4bf55' : '#2dd4bf18'
-  );
-  const bdColors = data.map((_,mi) =>
-    mesesActivos===null||mesesActivos.includes(mi) ? '#2dd4bf' : '#2dd4bf44'
-  );
-
-  const ctx = document.getElementById('cPlanilla');
-  CHARTS.plan = new Chart(ctx,{
+  const ctx=document.getElementById('cPlanilla');
+  CHARTS.plan=new Chart(ctx,{
     type:'bar',
     data:{labels:MOL,datasets:[{data,backgroundColor:bgColors,borderColor:bdColors,borderWidth:1.5,borderRadius:4}]},
     options:{...BASE_OPTS(),plugins:{...BASE_OPTS().plugins,tooltip:{...BASE_OPTS().plugins.tooltip,callbacks:{label:ctx=>`₡${Math.round(ctx.raw).toLocaleString('es-CR')}`}}}}
   });
 
-  const dataFiltrada = mesesPlan.map(mi=>data[mi]);
-  const total   = dataFiltrada.reduce((a,b)=>a+b,0);
-  const nonZ    = dataFiltrada.filter(v=>v>0);
-  const avg     = nonZ.length ? total/nonZ.length : 0;
-  const maxM    = Math.max(...dataFiltrada,0);
-  const perHead = F.length ? total/F.length : 0;
-
+  const dataFilt=mesesPlan.map(mi=>data[mi]);
+  const total=dataFilt.reduce((a,b)=>a+b,0);
+  const nonZ=dataFilt.filter(v=>v>0);
+  const avg=nonZ.length?total/nonZ.length:0;
+  const maxM=Math.max(...dataFilt,0);
+  const perHead=F.length?total/F.length:0;
   document.getElementById('planStats').innerHTML=[
     {l:'Total del Período',v:'₡'+fmtN(total),c:'var(--teal)'},
     {l:'Promedio Mensual',v:'₡'+fmtN(avg),c:'var(--cyan)'},
@@ -1708,13 +1579,13 @@ function renderPlanilla(){
 // INTERANUAL — una línea por año desde RAW consolidado
 // ══════════════════════════════════════════════
 function renderInteranual(){
-  const datasets = YEARS.map(y => ({
-    label: String(y),
-    data:  MO.map((_,mi) => headcountMesAnio(RAW, y, mi)),
-    borderColor: YCOL[y], bg:'transparent', fill:false,
-    bw: y===2026?2.5:1.5, pr: y===2026?3:2
+  const datasets=YEARS.map(y=>({
+    label:String(y),
+    data:MO.map((_,mi)=>headcountMesAnio(RAW,y,mi)),
+    borderColor:YCOL[y],bg:'transparent',fill:false,
+    bw:y===2026?2.5:1.5,pr:y===2026?3:2
   }));
-  CHARTS.ianual = mkLine('cInteranual', MOL, datasets);
+  CHARTS.ianual=mkLine('cInteranual',MOL,datasets);
 }
 
 // ══════════════════════════════════════════════
