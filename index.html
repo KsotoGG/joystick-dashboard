@@ -1019,13 +1019,6 @@ function applyFilters(){
     }
     return true;
   });
-    // Filtro de mes: el colaborador debe tener salario en AL MENOS UNO de los meses activos
-    if(mesesActivos !== null){
-      const tieneSalario = mesesActivos.some(mi => r.salarios && r.salarios[mi] > 0);
-      if(!tieneSalario) return false;
-    }
-    return true;
-  });
 
   // Actualizar chip de período
   const chipP = document.getElementById('chipPeriodo');
