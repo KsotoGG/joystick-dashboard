@@ -176,6 +176,17 @@ option{background:var(--bg3)}
 
 /* EMPTY STATE */
 .empty{text-align:center;padding:40px;color:var(--text3);font-size:12px}
+
+/* MES PICKER */
+.modo-btn{padding:5px 10px;border-radius:var(--r2);border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:var(--font);font-size:11px;cursor:pointer;transition:all .2s;flex:1;white-space:nowrap}
+.modo-btn:hover{border-color:var(--teal);color:var(--teal)}
+.modo-btn.active{background:rgba(45,212,191,.12);border-color:var(--teal);color:var(--teal);font-weight:500}
+.mes-check-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:var(--r2);border:1px solid var(--border);cursor:pointer;transition:all .2s;font-size:12px;color:var(--text2);user-select:none}
+.mes-check-item:hover{border-color:var(--teal);color:var(--text)}
+.mes-check-item.checked{background:rgba(45,212,191,.1);border-color:var(--teal);color:var(--teal)}
+.mes-check-item input{display:none}
+.mes-check-box{width:14px;height:14px;border-radius:3px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;transition:all .2s}
+.mes-check-item.checked .mes-check-box{background:var(--teal);border-color:var(--teal);color:#050d1a}
 </style>
 </head>
 <body>
@@ -212,20 +223,30 @@ option{background:var(--bg3)}
         <option value="2023">2023</option>
         <option value="2022">2022</option>
       </select>
-      <select class="btn" id="selMes" onchange="applyFilters()">
-        <option value="all">Mes: Todos</option>
-        <option value="0">Enero</option><option value="1">Febrero</option>
-        <option value="2">Marzo</option><option value="3">Abril</option>
-        <option value="4">Mayo</option><option value="5">Junio</option>
-        <option value="6">Julio</option><option value="7">Agosto</option>
-        <option value="8">Septiembre</option><option value="9">Octubre</option>
-        <option value="10">Noviembre</option><option value="11">Diciembre</option>
-      </select>
-      <select class="btn" id="selModo" onchange="applyFilters()">
-        <option value="especifico">📌 Mes específico</option>
-        <option value="acumulado">📈 Acumulado hasta ese mes</option>
-        <option value="todo">📅 Todo el año</option>
-      </select>
+      <!-- SELECTOR DE MESES MULTI-CHECK -->
+      <div style="position:relative" id="mesPicker">
+        <button class="btn" onclick="toggleMesPicker(event)" id="mesTrigger">
+          📅 <span id="mesLabel">Todos los meses</span> ▾
+        </button>
+        <div id="mesDropdown" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:12px;z-index:500;min-width:320px;box-shadow:0 16px 48px rgba(0,0,0,.5)">
+          <!-- MODO -->
+          <div style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:10px">
+            <button class="modo-btn active" id="modo-especifico" onclick="setModo('especifico',this)">📌 Específico</button>
+            <button class="modo-btn" id="modo-acumulado" onclick="setModo('acumulado',this)">📈 Acumulado</button>
+            <button class="modo-btn" id="modo-todo" onclick="setModo('todo',this)">📅 Todo el año</button>
+          </div>
+          <div id="modoHint" style="font-size:11px;color:var(--text3);margin-bottom:10px;min-height:28px;line-height:1.5"></div>
+          <!-- CHECKBOXES -->
+          <div id="mesChecks" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px">
+            <!-- generado por JS -->
+          </div>
+          <div style="display:flex;gap:6px;margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+            <button class="btn" style="flex:1;font-size:11px" onclick="seleccionarTodosMeses()">Todos</button>
+            <button class="btn" style="flex:1;font-size:11px" onclick="limpiarMeses()">Ninguno</button>
+            <button class="btn btn-accent" style="flex:1;font-size:11px" onclick="aplicarMeses()">Aplicar ✓</button>
+          </div>
+        </div>
+      </div>
       <button class="btn" onclick="window.print()">↓ Exportar</button>
       <button class="btn" onclick="resetFilters()">↺ Resetear</button>
       <button class="btn btn-accent" onclick="reloadData()">⟳ Actualizar</button>
@@ -745,39 +766,140 @@ function setYearPill(val, el){
   applyFilters();
 }
 
-// ── Devuelve los índices de mes activos según el modo ──
-function getMesesActivos(){
-  const mes  = document.getElementById('selMes').value;
-  const modo = document.getElementById('selModo').value;
+// ══════════════════════════════════════════════
+// MES PICKER — multi-select con checkboxes
+// ══════════════════════════════════════════════
+const MOF_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+let selectedMeses = null; // null = todos | array de índices
+let modoActual = 'todo';  // 'especifico' | 'acumulado' | 'todo'
 
-  // Modo "todo el año" o sin mes seleccionado → todos
-  if(modo === 'todo' || mes === 'all') return null; // null = sin restricción de mes
+function initMesPicker(){
+  const container = document.getElementById('mesChecks');
+  container.innerHTML = MOF_FULL.map((m,i)=>`
+    <div class="mes-check-item" id="mc${i}" onclick="toggleMes(${i})">
+      <div class="mes-check-box" id="mcb${i}"></div>
+      <span>${m}</span>
+    </div>`).join('');
+  updateModoHint();
+  // Cerrar al click fuera
+  document.addEventListener('click', e=>{
+    const picker = document.getElementById('mesPicker');
+    if(picker && !picker.contains(e.target)){
+      document.getElementById('mesDropdown').style.display='none';
+    }
+  });
+}
 
-  const mi = parseInt(mes);
+function toggleMesPicker(e){
+  e.stopPropagation();
+  const dd = document.getElementById('mesDropdown');
+  dd.style.display = dd.style.display==='none' ? 'block' : 'none';
+}
 
-  if(modo === 'especifico'){
-    // Solo ese mes
-    return [mi];
+function setModo(modo, el){
+  modoActual = modo;
+  document.querySelectorAll('.modo-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  // En modo "todo" → deseleccionar todos los checks y deshabilitar
+  if(modo === 'todo'){
+    selectedMeses = null;
+    MOF_FULL.forEach((_,i)=>setCheck(i,false));
+    document.getElementById('mesChecks').style.opacity='0.35';
+    document.getElementById('mesChecks').style.pointerEvents='none';
   } else {
-    // Acumulado: desde enero (0) hasta el mes seleccionado
-    return Array.from({length: mi + 1}, (_, i) => i);
+    document.getElementById('mesChecks').style.opacity='1';
+    document.getElementById('mesChecks').style.pointerEvents='auto';
+    if(selectedMeses===null) selectedMeses=[];
   }
+  updateModoHint();
+}
+
+function updateModoHint(){
+  const hints = {
+    'especifico': '📌 Selecciona uno o varios meses puntuales. Muestra solo la data de esos meses.',
+    'acumulado':  '📈 Selecciona el mes final. Acumula desde Enero hasta ese mes (YTD).',
+    'todo':       '📅 Muestra todos los meses del año sin filtro de mes.'
+  };
+  const el = document.getElementById('modoHint');
+  if(el) el.textContent = hints[modoActual]||'';
+}
+
+function toggleMes(i){
+  if(modoActual==='todo') return;
+  if(!selectedMeses) selectedMeses=[];
+  if(modoActual==='acumulado'){
+    // En modo acumulado: seleccionar de 0 hasta i
+    selectedMeses = Array.from({length:i+1},(_,k)=>k);
+    MOF_FULL.forEach((_,k)=>setCheck(k, k<=i));
+  } else {
+    // Modo específico: toggle individual
+    const idx = selectedMeses.indexOf(i);
+    if(idx>=0) selectedMeses.splice(idx,1);
+    else selectedMeses.push(i);
+    selectedMeses.sort((a,b)=>a-b);
+    setCheck(i, selectedMeses.includes(i));
+  }
+}
+
+function setCheck(i, checked){
+  const item = document.getElementById('mc'+i);
+  const box  = document.getElementById('mcb'+i);
+  if(!item||!box) return;
+  item.classList.toggle('checked', checked);
+  box.textContent = checked ? '✓' : '';
+}
+
+function seleccionarTodosMeses(){
+  if(modoActual==='todo') return;
+  selectedMeses = Array.from({length:12},(_,i)=>i);
+  MOF_FULL.forEach((_,i)=>setCheck(i,true));
+}
+
+function limpiarMeses(){
+  if(modoActual==='todo') return;
+  selectedMeses = [];
+  MOF_FULL.forEach((_,i)=>setCheck(i,false));
+}
+
+function aplicarMeses(){
+  document.getElementById('mesDropdown').style.display='none';
+  actualizarMesLabel();
+  applyFilters();
+}
+
+function actualizarMesLabel(){
+  const label = document.getElementById('mesLabel');
+  if(!label) return;
+  if(modoActual==='todo' || !selectedMeses || selectedMeses.length===0){
+    label.textContent = 'Todos los meses';
+  } else if(selectedMeses.length===12){
+    label.textContent = 'Todos los meses';
+  } else if(modoActual==='acumulado' && selectedMeses.length>0){
+    const last = selectedMeses[selectedMeses.length-1];
+    label.textContent = `Ene → ${MOF_FULL[last]}`;
+  } else if(selectedMeses.length===1){
+    label.textContent = MOF_FULL[selectedMeses[0]];
+  } else {
+    label.textContent = selectedMeses.map(i=>MOF_FULL[i].slice(0,3)).join(', ');
+  }
+}
+
+// ── Devuelve los índices de mes activos según modo y selección ──
+function getMesesActivos(){
+  if(modoActual==='todo' || !selectedMeses || selectedMeses.length===0) return null;
+  return [...selectedMeses];
 }
 
 // ── Etiqueta descriptiva del período activo ──
 function getPeriodoLabel(){
-  const mes  = document.getElementById('selMes').value;
-  const modo = document.getElementById('selModo').value;
   const year = document.getElementById('selYear').value;
-  const yrLabel = year === 'all' ? 'Todos los años' : year;
-  const MOL_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-
-  if(mes === 'all' || modo === 'todo')
-    return `📅 Todo el año · ${yrLabel}`;
-  const mi = parseInt(mes);
-  if(modo === 'especifico')
-    return `📌 ${MOL_FULL[mi]} · ${yrLabel}`;
-  return `📈 Ene → ${MOL_FULL[mi]} · ${yrLabel}`;
+  const yrLabel = year==='all'?'Todos los años':year;
+  const ma = getMesesActivos();
+  if(!ma) return `📅 Todo el año · ${yrLabel}`;
+  if(modoActual==='acumulado' && ma.length>0)
+    return `📈 Ene → ${MOF_FULL[ma[ma.length-1]]} · ${yrLabel}`;
+  if(ma.length===1) return `📌 ${MOF_FULL[ma[0]]} · ${yrLabel}`;
+  return `📌 ${ma.map(i=>MOF_FULL[i].slice(0,3)).join(', ')} · ${yrLabel}`;
 }
 
 function applyFilters(){
@@ -813,13 +935,20 @@ function applyFilters(){
 
 function resetFilters(){
   document.getElementById('selYear').value='all';
-  document.getElementById('selMes').value='all';
-  document.getElementById('selModo').value='todo';
   document.getElementById('selDepto').value='all';
   document.getElementById('selContrato').value='all';
   document.getElementById('selGen').value='all';
   document.getElementById('selProv').value='all';
   document.querySelectorAll('#filtersBar .f-pill').forEach((p,i)=>p.classList.toggle('active',i===0));
+  // Reset mes picker
+  modoActual='todo';
+  selectedMeses=null;
+  MOF_FULL.forEach((_,i)=>setCheck(i,false));
+  document.querySelectorAll('.modo-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('modo-todo').classList.add('active');
+  document.getElementById('mesChecks').style.opacity='0.35';
+  document.getElementById('mesChecks').style.pointerEvents='none';
+  actualizarMesLabel();
   applyFilters();
 }
 
@@ -1414,7 +1543,10 @@ function animFI(){
 // ══════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', loadData);
+window.addEventListener('DOMContentLoaded', ()=>{
+  initMesPicker();
+  loadData();
+});
 </script>
 </body>
 </html>
