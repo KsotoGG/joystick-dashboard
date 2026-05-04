@@ -832,16 +832,16 @@ function populateFilters(){
   fillSel('selPais', uniq('pais'), 'País');
   fillSel('selProv', uniq('provincia'), 'Provincia');
 
-  const total = RAW.length;
+  const total   = RAW.length;
   const activos = RAW.filter(r=>r.activo).length;
-  const salidas = RAW.filter(r=>!r.activo).length;
-  const yrs = [...new Set(RAW.map(r=>r._year))].sort();
+  const salidas = RAW.filter(r=>!r.activo && r.salidaDate).length;
+  const yrs     = [...new Set(RAW.flatMap(r=>r._años||[]))].sort();
 
-  document.getElementById('chipTotal').textContent = total.toLocaleString()+' registros';
-  document.getElementById('chipAnios').textContent = yrs.join(', ');
+  document.getElementById('chipTotal').textContent   = total.toLocaleString()+' colaboradores únicos';
+  document.getElementById('chipAnios').textContent   = yrs.join(', ');
   document.getElementById('chipActivos').textContent = activos.toLocaleString()+' activos';
   document.getElementById('chipSalidas').textContent = salidas.toLocaleString()+' salidas';
-  document.getElementById('srcTxt').textContent = `Google Sheets · ${total.toLocaleString()} colaboradores · ${yrs.length} año(s)`;
+  document.getElementById('srcTxt').textContent      = `Google Sheets · ${total.toLocaleString()} colaboradores únicos · ${yrs.length} año(s)`;
 }
 
 // ══════════════════════════════════════════════
@@ -1091,14 +1091,28 @@ function renderKPIs(){
   const mesesActivos   = getMesesActivos();
   const aniosFiltrados = yr==='all' ? YEARS : [parseInt(yr)];
 
-  // Headcount activo: persona sin fecha de salida en el período seleccionado
+  // Headcount activo: personas con salario > 0 en el año filtrado y sin fecha de salida en ese año
   const activos = F.filter(r => {
+    // Tiene salario en algún mes del año filtrado
     const tieneSalario = aniosFiltrados.some(y =>
       r.salariosPorAnio && r.salariosPorAnio[y] &&
-      Object.values(r.salariosPorAnio[y]).some(v=>v>0)
+      Object.values(r.salariosPorAnio[y]).some(v => v > 0)
     );
-    const salio = r.salidaDate && aniosFiltrados.includes(r.salidaDate.y);
-    return tieneSalario && !salio;
+    if(!tieneSalario) return false;
+    // No tiene fecha de salida en ese año (o no tiene fecha de salida)
+    if(!r.salidaDate) return true;
+    // Si salió en un año anterior al filtrado, no está activo en ese año
+    if(yr !== 'all'){
+      const y = parseInt(yr);
+      // Salió antes del año filtrado → no estaba activo ese año
+      if(r.salidaDate.y < y) return false;
+      // Salió en el año filtrado → no está activo (salió)
+      if(r.salidaDate.y === y) return false;
+    } else {
+      // Modo todos: activo = no tiene fecha de salida o salió en año futuro
+      if(r.salidaDate) return false;
+    }
+    return true;
   }).length;
 
   // Salidas del período
@@ -1184,13 +1198,16 @@ function renderKPIs(){
       ${k.spark?`<div class="kpi-spark"><canvas id="spk${i}" height="32"></canvas></div>`:''}
     </div>`).join('');
 
-  // Sparkline headcount mensual
+  // Sparkline: headcount por mes en el año filtrado
   kpis.forEach((k,i)=>{
     if(!k.spark) return;
     const ctx = document.getElementById('spk'+i); if(!ctx) return;
-    const data = MO.map((_,mi)=>F.filter(r=>r.salarios[mi]>0).length);
-    // Marcar meses activos con color diferente
-    const borderColors = MO.map((_,mi)=>
+    const y = yr==='all' ? Math.max(...YEARS) : parseInt(yr);
+    const data = MO.map((_,mi) =>
+      F.filter(r => r.salariosPorAnio && r.salariosPorAnio[y] && (r.salariosPorAnio[y][mi]||0) > 0).length
+    );
+    const mesesActivos = getMesesActivos();
+    const borderColors = MO.map((_,mi) =>
       mesesActivos===null || mesesActivos.includes(mi) ? '#2dd4bf' : '#2dd4bf44'
     );
     CHARTS['spk'+i] = new Chart(ctx,{
@@ -1210,37 +1227,49 @@ function fmtN(n){
 
 // ══════════════════════════════════════════════
 // TENDENCIA MENSUAL
+// ── Headcount = personas con salario > 0 en ese MES de ese AÑO exacto
+// ── Si filtro es "todos los años", se muestra una línea por año (no suma)
 // ══════════════════════════════════════════════
 function renderTend(){
   const F  = FILTERED;
   const yr = document.getElementById('selYear').value;
-  const aniosFiltrados = yr==='all' ? YEARS : [parseInt(yr)];
 
-  // Headcount por mes: personas con salario > 0 en ese mes en alguno de los años filtrados
-  const hc  = MO.map((_,mi) =>
-    F.filter(r =>
-      aniosFiltrados.some(y => r.salariosPorAnio && r.salariosPorAnio[y] && (r.salariosPorAnio[y][mi]||0)>0)
-    ).length
-  );
-  // Ingresos por mes: fecha ingreso en el mes (sin importar año si filtro es "todos")
-  const ing = MO.map((_,mi) =>
-    F.filter(r => r.ingresoDate && r.ingresoDate.m===mi &&
-      (yr==='all' || aniosFiltrados.includes(r.ingresoDate.y))
-    ).length
-  );
-  // Salidas por mes
-  const sal = MO.map((_,mi) =>
-    F.filter(r => r.salidaDate && r.salidaDate.m===mi &&
-      (yr==='all' || aniosFiltrados.includes(r.salidaDate.y))
-    ).length
-  );
+  let datasets;
 
-  document.getElementById('badgeTend').textContent = getPeriodoLabel();
-  CHARTS.tend = mkLine('cTend', MOL, [
-    {label:'Headcount', data:hc, borderColor:'#2dd4bf', bg:'#2dd4bf18', fill:true},
-    {label:'Ingresos',  data:ing, borderColor:'#22d3a0', bg:'transparent', fill:false, dash:[5,3]},
-    {label:'Salidas',   data:sal, borderColor:'#f87171', bg:'transparent', fill:false, dash:[3,3]},
-  ]);
+  if(yr === 'all'){
+    // Modo todos los años: mostrar una línea por año
+    datasets = [
+      // Headcount del año más reciente como línea principal
+      ...YEARS.slice().reverse().slice(0,3).map((y,i) => {
+        const data = MO.map((_,mi) =>
+          F.filter(r => r.salariosPorAnio && r.salariosPorAnio[y] && (r.salariosPorAnio[y][mi]||0) > 0).length
+        );
+        const colors = ['#2dd4bf','#22d3a0','#38bdf8'];
+        return {label:`HC ${y}`, data, borderColor:colors[i], bg: i===0?'#2dd4bf08':'transparent', fill:i===0, dash:i>0?[4,3]:[]};
+      })
+    ];
+    document.getElementById('badgeTend').textContent = 'Todos los años';
+  } else {
+    // Año específico: headcount = personas con salario en ESE año y ESE mes
+    const y = parseInt(yr);
+    const hc = MO.map((_,mi) =>
+      F.filter(r => r.salariosPorAnio && r.salariosPorAnio[y] && (r.salariosPorAnio[y][mi]||0) > 0).length
+    );
+    const ing = MO.map((_,mi) =>
+      F.filter(r => r.ingresoDate && r.ingresoDate.m === mi && r.ingresoDate.y === y).length
+    );
+    const sal = MO.map((_,mi) =>
+      F.filter(r => r.salidaDate && r.salidaDate.m === mi && r.salidaDate.y === y).length
+    );
+    datasets = [
+      {label:'Headcount', data:hc, borderColor:'#2dd4bf', bg:'#2dd4bf18', fill:true},
+      {label:'Ingresos',  data:ing, borderColor:'#22d3a0', bg:'transparent', fill:false, dash:[5,3]},
+      {label:'Salidas',   data:sal, borderColor:'#f87171', bg:'transparent', fill:false, dash:[3,3]},
+    ];
+    document.getElementById('badgeTend').textContent = getPeriodoLabel();
+  }
+
+  CHARTS.tend = mkLine('cTend', MOL, datasets);
 }
 
 // ══════════════════════════════════════════════
@@ -1381,26 +1410,45 @@ function renderPuestos(){
 // ROTACIÓN — respeta meses activos
 // ══════════════════════════════════════════════
 function renderRotacion(){
-  const F=FILTERED;
+  const F = FILTERED;
+  const yr = document.getElementById('selYear').value;
   const mesesActivos = getMesesActivos();
-  const hc  = MO.map((_,mi)=>F.filter(r=>r.salarios[mi]>0).length);
-  const sal = MO.map((_,mi)=>F.filter(r=>r.salidaDate&&r.salidaDate.m===mi).length);
-  const rates = hc.map((h,i)=>h>0?+(sal[i]/h*100).toFixed(2):0);
+  const y = yr==='all' ? null : parseInt(yr);
 
-  // Opacidad reducida en meses fuera del período seleccionado
-  const bgColors = rates.map((r,i)=>{
+  // Headcount por mes: personas con salario en ese mes del año filtrado
+  const hc = MO.map((_,mi) =>
+    F.filter(r => {
+      if(y !== null){
+        return r.salariosPorAnio && r.salariosPorAnio[y] && (r.salariosPorAnio[y][mi]||0) > 0;
+      }
+      // Todos los años: suma única de personas con salario ese mes en cualquier año
+      return YEARS.some(ay => r.salariosPorAnio && r.salariosPorAnio[ay] && (r.salariosPorAnio[ay][mi]||0) > 0);
+    }).length
+  );
+
+  const sal = MO.map((_,mi) =>
+    F.filter(r => {
+      if(!r.salidaDate || r.salidaDate.m !== mi) return false;
+      if(y !== null) return r.salidaDate.y === y;
+      return true;
+    }).length
+  );
+
+  const rates = hc.map((h,i) => h > 0 ? +(sal[i]/h*100).toFixed(2) : 0);
+
+  const bgColors = rates.map((r,i) => {
     const inPeriod = mesesActivos===null || mesesActivos.includes(i);
     const base = r>5?'#f87171':r>3?'#fbbf24':'#22d3a0';
     return base+(inPeriod?'cc':'33');
   });
-  const bdColors = rates.map((r,i)=>{
+  const bdColors = rates.map((r,i) => {
     const inPeriod = mesesActivos===null || mesesActivos.includes(i);
     const base = r>5?'#f87171':r>3?'#fbbf24':'#22d3a0';
-    return inPeriod?base:base+'55';
+    return inPeriod ? base : base+'55';
   });
 
-  const ctx=document.getElementById('cRot');
-  CHARTS.rot=new Chart(ctx,{
+  const ctx = document.getElementById('cRot');
+  CHARTS.rot = new Chart(ctx,{
     type:'bar',
     data:{labels:MOL,datasets:[{data:rates,backgroundColor:bgColors,borderColor:bdColors,borderWidth:1,borderRadius:4}]},
     options:{...BASE_OPTS(),plugins:{...BASE_OPTS().plugins,tooltip:{...BASE_OPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.raw}% rotación`}}}}
@@ -1557,7 +1605,7 @@ function renderAlertas(){
     despidos>0?{i:'📋',t:'ai-amber',tit:`${despidos} despidos con responsabilidad patronal`,d:'Revisar causas para reducir exposición legal y costo.'}:null,
     sinDepto>0?{i:'!',t:'ai-blue',tit:`${sinDepto} colaboradores sin departamento`,d:'Actualizar campo DEPTO en el Google Sheets.'}:null,
     sinSal>0?{i:'₡',t:'ai-blue',tit:`${sinSal} colaboradores activos sin salario registrado`,d:'Verificar columnas de salario en el sheet.'}:null,
-    {i:'✓',t:'ai-green',tit:`${RAW.length.toLocaleString()} registros sincronizados`,d:`Datos en tiempo real de ${[...new Set(RAW.map(r=>r._year))].length} año(s) desde Google Sheets.`},
+    {i:'✓',t:'ai-green',tit:`${RAW.length.toLocaleString()} colaboradores únicos cargados`,d:`Datos de ${[...new Set(RAW.flatMap(r=>r._años||[]))].length} año(s) desde Google Sheets. Sin duplicados entre años.`},
   ].filter(Boolean);
 
   const alertasActivas=items.filter(a=>a.t==='ai-red'||a.t==='ai-amber').length;
