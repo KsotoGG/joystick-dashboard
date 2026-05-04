@@ -714,26 +714,60 @@ async function loadData(){
         DESTINO:find('destino colaborador','destino'),
       };
 
-      // Detectar columnas de salario por nombre del mes y año
-      const yy=String(year).slice(2);
-      const MES_NOMBRES=[
-        ['ene','enero'],['feb','febrero'],['mar','marzo'],['abr','abril'],
-        ['may','mayo'],['jun','junio'],['jul','julio'],['ago','agosto'],
-        ['sept','sep','septiembre'],['oct','octubre'],['nov','noviembre'],['dic','diciembre']
+      // ── DETECTAR COLUMNAS DE SALARIO ──
+      // Busca por nombre: ene-22, feb-22 ... dic-22
+      // Si no encuentra, usa posición fija desde la columna DESTINO+1
+      const yy = String(year).slice(2);
+      const MES_ALIAS = [
+        ['ene','enero'],          // 0
+        ['feb','febrero'],        // 1
+        ['mar','marzo'],          // 2
+        ['abr','abril'],          // 3
+        ['may','mayo'],           // 4
+        ['jun','junio'],          // 5
+        ['jul','julio'],          // 6
+        ['ago','agosto'],         // 7
+        ['sept','sep','septiembre'], // 8
+        ['oct','octubre'],        // 9
+        ['nov','noviembre'],      // 10
+        ['dic','diciembre'],      // 11
       ];
-      const salIdxMap={};
-      headers.forEach((h,idx)=>{
-        const hc=h.replace(/\s/g,'');
-        MES_NOMBRES.forEach((aliases,mi)=>{
-          aliases.forEach(alias=>{
-            if(hc===`${alias}-${yy}`||hc===`${alias}${yy}`||hc===`${alias}-${year}`){
-              salIdxMap[mi]=idx;
+
+      const salIdxMap = {};
+
+      // Intento 1: buscar por nombre de columna
+      headers.forEach((h, idx) => {
+        const hc = h.replace(/[\s\u00a0]/g,'').toLowerCase();
+        MES_ALIAS.forEach((aliases, mi) => {
+          if(salIdxMap[mi] !== undefined) return; // ya encontrado
+          for(const alias of aliases){
+            if(hc === `${alias}-${yy}` ||
+               hc === `${alias}${yy}` ||
+               hc === `${alias}-${year}` ||
+               hc === `${alias}_${yy}`){
+              salIdxMap[mi] = idx;
+              break;
             }
-          });
+          }
         });
       });
 
-      console.log(`[${year}] ColIdx COLAB:${ci.COLAB} FSALIDA:${ci.FSALIDA} SalMap:`,JSON.stringify(salIdxMap));
+      // Intento 2: si no encontró nada, usar posición fija (col 19 en adelante)
+      // basado en la estructura conocida del sheet
+      const foundCount = Object.keys(salIdxMap).length;
+      if(foundCount < 6){
+        console.warn(`[${year}] Solo ${foundCount} columnas de salario encontradas por nombre. Usando posición fija.`);
+        // Buscar dónde termina la última columna conocida
+        const lastKnownCol = Math.max(ci.PAIS,ci.CONTRATO,ci.EMPRESA,ci.COLAB,ci.DEPTO,
+          ci.PUESTO,ci.INGRESO,ci.NACIO,ci.GEN,ci.ESTADO,ci.HIJOS,ci.GRADO,ci.INGLES,
+          ci.PROVINCIA,ci.CANTON,ci.FSALIDA,ci.MOTIVO,ci.RAZON,ci.DESTINO);
+        const salStart = lastKnownCol >= 0 ? lastKnownCol + 1 : 19;
+        for(let mi=0; mi<12; mi++){
+          if(salIdxMap[mi] === undefined) salIdxMap[mi] = salStart + mi;
+        }
+      }
+
+      console.log(`[${year}] SalMap:`, JSON.stringify(salIdxMap), '| Headers sample:', headers.slice(19,22));
 
       const mapped=dataRows.map(row=>{
         const g=(i)=>i>=0?(row[i]||'').trim():'';
