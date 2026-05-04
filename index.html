@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -410,6 +411,15 @@ option{background:var(--bg3)}
 // ═══════════════════════════════════════════
 const SHEET = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub';
 const YEARS = [2022,2023,2024,2025,2026];
+
+// GID de cada pestaña (obtenido de la URL del sheet)
+const YEAR_GID = {
+  2022: 1494200584,
+  2023: 1192022268,
+  2024: 1703878145,
+  2025: 594954360,
+  2026: 1273792649,
+};
 const MOL   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MOF   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const PAL   = ['#2dd4bf','#38bdf8','#a78bfa','#f472b6','#22d3a0','#fbbf24','#f87171','#818cf8','#fb923c','#34d399'];
@@ -502,8 +512,9 @@ function parseSal(s){
 // LOAD ONE SHEET TAB
 // ═══════════════════════════════════════════
 async function fetchTab(year){
-  const url=`${SHEET}?output=csv&sheet=${year}`;
-  const r=await fetch(url);
+  const gid = YEAR_GID[year];
+  const url = `${SHEET}?output=csv&gid=${gid}`;
+  const r = await fetch(url);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.text();
 }
@@ -741,11 +752,15 @@ function buildPersonas(){
   console.log(`[PERSONAS] ${Object.keys(PERSONAS).length} personas únicas`);
 }
 
-// ═══════════════════════════════════════════
 // HEADCOUNT: persons with salary > 0 in month M of year Y
-// ═══════════════════════════════════════════
+// AND who did NOT leave during that month
 function hc(personas, year, month){
-  return personas.filter(p=>p.sal[year]&&(p.sal[year][month]||0)>0).length;
+  return personas.filter(p => {
+    if(!p.sal[year] || (p.sal[year][month]||0) === 0) return false;
+    // Si tiene fecha de salida en ese mismo mes/año → ya no está activo ese mes
+    if(p.salidaDate && p.salidaDate.y === year && p.salidaDate.m === month) return false;
+    return true;
+  }).length;
 }
 
 function hcCierre(personas, year){
@@ -1044,27 +1059,39 @@ function renderKPIs(){
   let activos,activosMes,salidas,ingresos,planTotal,planMes;
 
   if(yr==='all'){
-    // Use latest year with data
     const maxY=Math.max(...YEARS.filter(y=>F.some(p=>p.sal[y])));
-    const c=hcCierre(F,maxY);
+    const rowsMaxY=F.filter(p=>p.sal[maxY]);
+    // Headcount = last month with data in maxY
+    const c=hcCierre(rowsMaxY,maxY);
     activos=c.n; activosMes=c.m>=0?`Cierre ${MOL[c.m]}-${maxY}`:'Todos';
+    // Ingresos/salidas = totales históricos
     salidas=F.filter(p=>p.salidaDate).length;
     ingresos=F.filter(p=>p.ingresoDate).length;
     planTotal=F.reduce((s,p)=>s+YEARS.reduce((ys,y)=>ys+(p.sal[y]||[]).reduce((a,b)=>a+b,0),0),0);
     planMes=planTotal/(YEARS.length*12)||0;
   } else {
     const y=parseInt(yr);
+    const rowsY=F.filter(p=>p.sal[y]);
+
     if(meses&&meses.length>0){
-      const lm=meses[meses.length-1];
-      activos=hc(F,y,lm); activosMes=`${MOL[lm]}-${yr}`;
+      // Con filtro de meses: headcount del ÚLTIMO mes seleccionado
+      const lastM=meses[meses.length-1];
+      activos=hc(rowsY,y,lastM);
+      activosMes=`${MOL[lastM]}-${yr}`;
+      // Ingresos/salidas ACUMULADOS de todos los meses seleccionados
+      salidas=F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&meses.includes(p.salidaDate.m)).length;
+      ingresos=F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&meses.includes(p.ingresoDate.m)).length;
     } else {
-      const c=hcCierre(F,y);
+      // Año completo: headcount del último mes con datos
+      const c=hcCierre(rowsY,y);
       activos=c.n; activosMes=c.m>=0?`Cierre ${MOL[c.m]}-${yr}`:yr;
+      // Ingresos/salidas acumulados de todo el año
+      salidas=F.filter(p=>p.salidaDate&&p.salidaDate.y===y).length;
+      ingresos=F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y).length;
     }
-    salidas=F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&(!meses||meses.includes(p.salidaDate.m))).length;
-    ingresos=F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&(!meses||meses.includes(p.ingresoDate.m))).length;
+
     const mp=meses||Array.from({length:12},(_,i)=>i);
-    planTotal=F.reduce((s,p)=>s+(p.sal[y]||[]).reduce((a,v,mi)=>a+(mp.includes(mi)?v:0),0),0);
+    planTotal=rowsY.reduce((s,p)=>s+(p.sal[y]||[]).reduce((a,v,mi)=>a+(mp.includes(mi)?v:0),0),0);
     planMes=mp.length>0?planTotal/mp.length:0;
   }
 
