@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Joystick · People Analytics</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#090e1a;--bg2:#0f1624;--bg3:#161f30;--bg4:#1c2a3e;--bg5:#243048;
+  --border:rgba(80,110,160,.15);--border2:rgba(80,110,160,.28);
+  --text:#dde4f0;--text2:#7e92b4;--text3:#4a5a78;
+  --teal:#2dd4bf;--cyan:#38bdf8;--green:#22d3a0;--amber:#fbbf24;
+  --red:#f87171;--purple:#a78bfa;--pink:#f472b6;
+  --font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
+  --r:12px;--r2:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5;min-height:100vh;overflow-x:hidden}
+
+/* LOADER */
+#loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s ease}
+.ld-logo{font-size:28px;font-weight:600;letter-spacing:-1px;margin-bottom:28px}
+.ld-logo span{background:linear-gradient(135deg,var(--teal),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.ld-tabs{display:flex;gap:6px;margin-bottom:24px}
+.ld-tab{padding:4px 14px;border-radius:99px;font-size:11px;font-family:var(--mono);border:1px solid var(--border);color:var(--text3);transition:all .3s}
+.ld-tab.done{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,.08)}
+.ld-tab.active{border-color:var(--cyan);color:var(--cyan);animation:blink 1s infinite}
+.ld-tab.fail{border-color:var(--red);color:var(--red)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+.ld-bar-wrap{width:300px;height:3px;background:var(--bg4);border-radius:99px;overflow:hidden}
+.ld-bar{height:100%;width:0;background:linear-gradient(90deg,var(--teal),var(--cyan));border-radius:99px;transition:width .4s ease}
+.ld-msg{margin-top:14px;font-size:12px;color:var(--text3);font-family:var(--mono);text-align:center}
+.ld-err{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:var(--r);padding:20px 28px;max-width:500px;text-align:center;color:var(--red);font-size:13px;line-height:1.8;margin-top:16px}
+.ld-err b{color:var(--amber)}
+
+/* LAYOUT */
+.app{max-width:1640px;margin:0 auto;padding:0 28px 60px}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;padding:22px 0 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:200;gap:16px;flex-wrap:wrap}
+.hdr-brand{display:flex;align-items:center;gap:12px}
+.hdr-mark{width:38px;height:38px;background:linear-gradient(135deg,var(--teal),var(--cyan));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#050d1a;flex-shrink:0}
+.hdr-title{font-size:20px;font-weight:600;letter-spacing:-.4px}
+.hdr-sub{font-size:12px;color:var(--text2);margin-top:1px}
+.hdr-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border-radius:var(--r2);border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-family:var(--font);font-size:12px;cursor:pointer;transition:all .2s;white-space:nowrap}
+.btn:hover{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,.07)}
+.btn-accent{background:linear-gradient(135deg,var(--teal),var(--cyan));border:none;color:#050d1a;font-weight:600}
+.btn-accent:hover{opacity:.85;color:#050d1a}
+select.btn{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237e92b4' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:26px;background-color:var(--bg3)}
+option{background:var(--bg3)}
+
+/* STATUS BAR */
+.sbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-radius:var(--r2);background:var(--bg3);border:1px solid var(--border);margin-top:14px;font-size:12px;flex-wrap:wrap;gap:8px}
+.sbar-left{display:flex;align-items:center;gap:8px;color:var(--text2)}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px rgba(34,211,160,.2);animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 2px rgba(34,211,160,.2)}50%{box-shadow:0 0 0 5px rgba(34,211,160,0)}}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:500}
+.chip.teal{background:rgba(45,212,191,.1);color:var(--teal)}
+.chip.cyan{background:rgba(56,189,248,.1);color:var(--cyan)}
+.chip.green{background:rgba(34,211,160,.1);color:var(--green)}
+.chip.amber{background:rgba(251,191,36,.1);color:var(--amber)}
+.chip.red{background:rgba(248,113,113,.1);color:var(--red)}
+.chip.purple{background:rgba(167,139,250,.1);color:var(--purple)}
+
+/* FILTERS */
+.filters{display:flex;align-items:center;gap:8px;padding:14px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.f-label{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.07em;margin-right:2px}
+.f-pill{padding:5px 13px;border-radius:99px;border:1px solid var(--border2);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;transition:all .2s;font-family:var(--font)}
+.f-pill:hover,.f-pill.active{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,.08)}
+.f-select{padding:5px 26px 5px 11px;border-radius:var(--r2);border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-family:var(--font);font-size:12px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237e92b4' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 7px center;transition:border-color .2s}
+.f-select:hover{border-color:var(--teal)}
+
+/* SECTION */
+.sec{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin:28px 0 14px;display:flex;align-items:center;gap:10px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;position:relative;overflow:hidden;transition:border-color .25s,transform .2s}
+.kpi:hover{border-color:var(--border2);transform:translateY(-1px)}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:0;transition:opacity .3s}
+.kpi:hover::after{opacity:1}
+.kpi.t-teal::after{background:var(--teal)}.kpi.t-cyan::after{background:var(--cyan)}
+.kpi.t-green::after{background:var(--green)}.kpi.t-amber::after{background:var(--amber)}
+.kpi.t-red::after{background:var(--red)}.kpi.t-purple::after{background:var(--purple)}
+.kpi-lbl{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px}
+.kpi-row{display:flex;align-items:baseline;gap:9px;margin-bottom:6px}
+.kpi-val{font-size:28px;font-weight:600;letter-spacing:-1px;line-height:1}
+.kpi-badge{font-size:11px;font-weight:500;padding:2px 7px;border-radius:99px}
+.kpi-badge.up{background:rgba(34,211,160,.13);color:var(--green)}
+.kpi-badge.dn{background:rgba(248,113,113,.13);color:var(--red)}
+.kpi-badge.nt{background:rgba(251,191,36,.1);color:var(--amber)}
+.kpi-ctx{font-size:11px;color:var(--text3)}
+.kpi-spark{margin-top:10px;height:32px}
+
+/* CHART GRID */
+.cg{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin-bottom:12px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;transition:border-color .2s}
+.panel:hover{border-color:var(--border2)}
+.c12{grid-column:span 12}.c8{grid-column:span 8}.c7{grid-column:span 7}
+.c6{grid-column:span 6}.c5{grid-column:span 5}.c4{grid-column:span 4}.c3{grid-column:span 3}
+@media(max-width:1100px){.c8,.c7,.c5{grid-column:span 12}.c6,.c4{grid-column:span 12}.c3{grid-column:span 6}}
+@media(max-width:700px){.c3{grid-column:span 12}}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:10px}
+.pt{font-size:13px;font-weight:500;color:var(--text)}
+.ps{font-size:11px;color:var(--text3);margin-top:2px}
+.pb{font-size:11px;padding:3px 10px;border-radius:99px;background:var(--bg4);color:var(--text3);white-space:nowrap;flex-shrink:0}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;font-size:11px;color:var(--text2)}
+.li{display:flex;align-items:center;gap:5px}
+.ld-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+/* PROG BARS */
+.prog-list{display:flex;flex-direction:column;gap:9px}
+.prog-row{display:flex;flex-direction:column;gap:3px}
+.prog-hdr{display:flex;justify-content:space-between;font-size:11px}
+.prog-lbl{color:var(--text2)}.prog-v{color:var(--text);font-weight:500;font-family:var(--mono)}
+.prog-bg{height:5px;background:var(--bg4);border-radius:99px;overflow:hidden}
+.prog-bar{height:100%;border-radius:99px;transition:width 1s ease}
+
+/* HEATMAP */
+.hm-wrap{display:flex;gap:6px}
+.hm-ylabels{display:flex;flex-direction:column;gap:3px;padding-top:20px}
+.hm-ylabel{font-size:10px;color:var(--text3);height:26px;display:flex;align-items:center;white-space:nowrap;padding-right:8px;min-width:100px}
+.hm-body{flex:1;overflow:hidden}
+.hm-xlabels{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-bottom:4px}
+.hm-xlabel{font-size:10px;color:var(--text3);text-align:center}
+.hm-row{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-bottom:3px}
+.hm-cell{height:26px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);color:rgba(255,255,255,.85);cursor:default}
+.hm-cell:hover{outline:1px solid rgba(255,255,255,.3)}
+
+/* ALERTS */
+.alert-list{display:flex;flex-direction:column;gap:8px}
+.alert-item{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:var(--r2);border:1px solid var(--border);background:var(--bg3)}
+.ai{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.ai-red{background:rgba(248,113,113,.15)}.ai-amber{background:rgba(251,191,36,.1)}
+.ai-green{background:rgba(34,211,160,.1)}.ai-blue{background:rgba(56,189,248,.1)}
+.alert-t{font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px}
+.alert-d{font-size:11px;color:var(--text3)}
+
+/* TABLE */
+.dt{width:100%;border-collapse:collapse;font-size:12px}
+.dt th{text-align:left;padding:8px 12px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);border-bottom:1px solid var(--border)}
+.dt td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle}
+.dt tr:last-child td{border-bottom:none}
+.dt tr:hover td{background:rgba(255,255,255,.015)}
+.tbar-bg{background:var(--bg4);border-radius:99px;height:5px;min-width:50px}
+.tbar{height:5px;border-radius:99px}
+
+/* PLANILLA STATS */
+.pstat{display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 10px;background:var(--bg3);border-radius:var(--r2);border:1px solid var(--border)}
+.pstat-v{font-size:19px;font-weight:600;letter-spacing:-.5px;margin:3px 0}
+.pstat-l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+
+/* TABS */
+.tabs{display:flex;gap:3px;margin-bottom:14px}
+.tab{padding:5px 12px;border-radius:var(--r2);font-size:11px;cursor:pointer;color:var(--text3);transition:all .2s}
+.tab:hover{color:var(--text2)}.tab.active{background:var(--bg4);color:var(--teal)}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:99px}
+
+/* FOOTER */
+.footer{padding:24px 0 0;border-top:1px solid var(--border);margin-top:40px;display:flex;justify-content:space-between;font-size:11px;color:var(--text3)}
+
+/* FI */
+.fi{opacity:0;transform:translateY(10px);transition:opacity .4s,transform .4s}
+.fi.vis{opacity:1;transform:translateY(0)}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:40px;color:var(--text3);font-size:12px}
+
+/* MES PICKER */
+.modo-btn{padding:5px 10px;border-radius:var(--r2);border:1px solid var(--border2);background:transparent;color:var(--text3);font-family:var(--font);font-size:11px;cursor:pointer;transition:all .2s;flex:1;white-space:nowrap}
+.modo-btn:hover{border-color:var(--teal);color:var(--teal)}
+.modo-btn.active{background:rgba(45,212,191,.12);border-color:var(--teal);color:var(--teal);font-weight:500}
+.mes-check-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:var(--r2);border:1px solid var(--border);cursor:pointer;transition:all .2s;font-size:12px;color:var(--text2);user-select:none}
+.mes-check-item:hover{border-color:var(--teal);color:var(--text)}
+.mes-check-item.checked{background:rgba(45,212,191,.1);border-color:var(--teal);color:var(--teal)}
+.mes-check-item input{display:none}
+.mes-check-box{width:14px;height:14px;border-radius:3px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;transition:all .2s}
+.mes-check-item.checked .mes-check-box{background:var(--teal);border-color:var(--teal);color:#050d1a}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="ld-logo">◈ <span>Joystick</span> People Analytics</div>
+  <div class="ld-tabs">
+    <div class="ld-tab" id="lt2022">2022</div>
+    <div class="ld-tab" id="lt2023">2023</div>
+    <div class="ld-tab" id="lt2024">2024</div>
+    <div class="ld-tab" id="lt2025">2025</div>
+    <div class="ld-tab" id="lt2026">2026</div>
+  </div>
+  <div class="ld-bar-wrap"><div class="ld-bar" id="ldBar"></div></div>
+  <div class="ld-msg" id="ldMsg">Iniciando carga...</div>
+</div>
+
+<div class="app">
+  <!-- HEADER -->
+  <div class="header">
+    <div class="hdr-brand">
+      <div class="hdr-mark">J</div>
+      <div>
+        <div class="hdr-title">People Analytics</div>
+        <div class="hdr-sub">Estadísticas de Colaboradores · Joystick</div>
+      </div>
+    </div>
+    <div class="hdr-actions">
+      <select class="btn" id="selYear" onchange="onYearDropdownChange()">
+        <option value="all">Todos los años</option>
+        <option value="2026" selected>2026</option>
+        <option value="2025">2025</option>
+        <option value="2024">2024</option>
+        <option value="2023">2023</option>
+        <option value="2022">2022</option>
+      </select>
+      <!-- SELECTOR DE MESES MULTI-CHECK -->
+      <div style="position:relative" id="mesPicker">
+        <button class="btn" onclick="toggleMesPicker(event)" id="mesTrigger">
+          📅 <span id="mesLabel">Todos los meses</span> ▾
+        </button>
+        <div id="mesDropdown" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:12px;z-index:500;min-width:320px;box-shadow:0 16px 48px rgba(0,0,0,.5)">
+          <!-- MODO -->
+          <div style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:10px">
+            <button class="modo-btn active" id="modo-especifico" onclick="setModo('especifico',this)">📌 Específico</button>
+            <button class="modo-btn" id="modo-acumulado" onclick="setModo('acumulado',this)">📈 Acumulado</button>
+            <button class="modo-btn" id="modo-todo" onclick="setModo('todo',this)">📅 Todo el año</button>
+          </div>
+          <div id="modoHint" style="font-size:11px;color:var(--text3);margin-bottom:10px;min-height:28px;line-height:1.5"></div>
+          <!-- CHECKBOXES -->
+          <div id="mesChecks" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px">
+            <!-- generado por JS -->
+          </div>
+          <div style="display:flex;gap:6px;margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+            <button class="btn" style="flex:1;font-size:11px" onclick="seleccionarTodosMeses()">Todos</button>
+            <button class="btn" style="flex:1;font-size:11px" onclick="limpiarMeses()">Ninguno</button>
+            <button class="btn btn-accent" style="flex:1;font-size:11px" onclick="aplicarMeses()">Aplicar ✓</button>
+          </div>
+        </div>
+      </div>
+      <button class="btn" onclick="window.print()">↓ Exportar</button>
+      <button class="btn" onclick="resetFilters()">↺ Resetear</button>
+      <button class="btn btn-accent" onclick="reloadData()">⟳ Actualizar</button>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="sbar">
+    <div class="sbar-left"><div class="pulse"></div><span id="srcTxt">Cargando datos...</span></div>
+    <div class="chips">
+      <span class="chip teal" id="chipTotal">—</span>
+      <span class="chip cyan" id="chipAnios">—</span>
+      <span class="chip green" id="chipActivos">—</span>
+      <span class="chip amber" id="chipSalidas">—</span>
+      <span class="chip purple" id="chipPeriodo">—</span>
+    </div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filters" id="filtersBar">
+    <span class="f-label">Año</span>
+    <button class="f-pill active" data-year="all" onclick="setYearPill('all',this)">Todos</button>
+    <button class="f-pill" data-year="2026" onclick="setYearPill('2026',this)">2026</button>
+    <button class="f-pill" data-year="2025" onclick="setYearPill('2025',this)">2025</button>
+    <button class="f-pill" data-year="2024" onclick="setYearPill('2024',this)">2024</button>
+    <button class="f-pill" data-year="2023" onclick="setYearPill('2023',this)">2023</button>
+    <button class="f-pill" data-year="2022" onclick="setYearPill('2022',this)">2022</button>
+    <span style="flex:1"></span>
+    <select class="f-select" id="selDepto" onchange="applyFilters()"><option value="all">Depto: Todos</option></select>
+    <select class="f-select" id="selContrato" onchange="applyFilters()"><option value="all">Contrato: Todos</option></select>
+    <select class="f-select" id="selGen" onchange="applyFilters()">
+      <option value="all">Género: Todos</option>
+      <option value="F">Femenino</option>
+      <option value="M">Masculino</option>
+    </select>
+    <select class="f-select" id="selPais" onchange="applyFilters()"><option value="all">País: Todos</option></select>
+    <select class="f-select" id="selProv" onchange="applyFilters()"><option value="all">Provincia: Todas</option></select>
+  </div>
+
+  <!-- KPIs -->
+  <div class="sec">Indicadores Clave</div>
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- TENDENCIA -->
+  <div class="sec">Tendencia Temporal</div>
+  <div class="cg">
+    <div class="panel c8">
+      <div class="ph">
+        <div><div class="pt">Evolución Mensual de Headcount</div><div class="ps">Colaboradores activos con salario, ingresos y salidas</div></div>
+        <div class="pb" id="badgeTend">—</div>
+      </div>
+      <div class="legend">
+        <span class="li"><span class="ld-dot" style="background:var(--teal)"></span>Headcount activo</span>
+        <span class="li"><span class="ld-dot" style="background:var(--green)"></span>Ingresos</span>
+        <span class="li"><span class="ld-dot" style="background:var(--red)"></span>Salidas</span>
+      </div>
+      <div style="height:270px"><canvas id="cTend"></canvas></div>
+    </div>
+    <div class="panel c4">
+      <div class="ph"><div><div class="pt">Por Departamento</div><div class="ps">Headcount activo actual</div></div></div>
+      <div style="height:270px"><canvas id="cDepto"></canvas></div>
+    </div>
+  </div>
+
+  <!-- DEMOGRAFÍA -->
+  <div class="sec">Distribución & Demografía</div>
+  <div class="cg">
+    <div class="panel c3">
+      <div class="ph"><div><div class="pt">Género</div></div></div>
+      <div style="height:200px"><canvas id="cGen"></canvas></div>
+    </div>
+    <div class="panel c3">
+      <div class="ph"><div><div class="pt">Contrato</div></div></div>
+      <div style="height:200px"><canvas id="cContrato"></canvas></div>
+    </div>
+    <div class="panel c3">
+      <div class="ph"><div><div class="pt">Estado Civil</div></div></div>
+      <div style="height:200px"><canvas id="cEstado"></canvas></div>
+    </div>
+    <div class="panel c3">
+      <div class="ph"><div><div class="pt">País</div></div></div>
+      <div style="height:200px"><canvas id="cPais"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TALENTO -->
+  <div class="sec">Perfil del Talento</div>
+  <div class="cg">
+    <div class="panel c4">
+      <div class="ph"><div><div class="pt">Distribución</div></div></div>
+      <div class="tabs" id="talTabs">
+        <div class="tab active" onclick="switchTalent('antig',this)">Antigüedad</div>
+        <div class="tab" onclick="switchTalent('edad',this)">Edad</div>
+        <div class="tab" onclick="switchTalent('hijos',this)">Hijos</div>
+      </div>
+      <div style="height:200px"><canvas id="cTalent"></canvas></div>
+    </div>
+    <div class="panel c4">
+      <div class="ph"><div><div class="pt">Grado Académico</div></div></div>
+      <div class="prog-list" id="progAcad"></div>
+    </div>
+    <div class="panel c4">
+      <div class="ph"><div><div class="pt">Nivel de Inglés</div></div></div>
+      <div class="prog-list" id="progIngles"></div>
+    </div>
+  </div>
+
+  <!-- UBICACIÓN -->
+  <div class="cg">
+    <div class="panel c6">
+      <div class="ph"><div><div class="pt">Top Provincias</div><div class="ps">Distribución geográfica</div></div></div>
+      <div class="prog-list" id="progProv"></div>
+    </div>
+    <div class="panel c6">
+      <div class="ph"><div><div class="pt">Top Cantones</div><div class="ps">Localización específica</div></div></div>
+      <div class="prog-list" id="progCanton"></div>
+    </div>
+  </div>
+
+  <!-- PUESTOS -->
+  <div class="cg">
+    <div class="panel c12">
+      <div class="ph"><div><div class="pt">Top Puestos por Headcount Activo</div></div></div>
+      <table class="dt" id="tblPuestos">
+        <thead><tr><th>#</th><th>Puesto</th><th>Colaboradores</th><th>% del Total</th><th>Depto principal</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ROTACIÓN -->
+  <div class="sec">Rotación & Salidas</div>
+  <div class="cg">
+    <div class="panel c6">
+      <div class="ph">
+        <div><div class="pt">Tasa de Rotación Mensual</div><div class="ps">% salidas sobre headcount activo</div></div>
+        <div class="pb">Meta &lt;5%</div>
+      </div>
+      <div style="height:230px"><canvas id="cRot"></canvas></div>
+    </div>
+    <div class="panel c6">
+      <div class="ph"><div><div class="pt">Motivo de Salida</div><div class="ps">Modalidad de desvinculación</div></div></div>
+      <div style="height:230px"><canvas id="cMotivo"></canvas></div>
+    </div>
+  </div>
+  <div class="cg">
+    <div class="panel c6">
+      <div class="ph"><div><div class="pt">Razón de Salida</div><div class="ps">Causa específica declarada</div></div></div>
+      <div style="height:220px"><canvas id="cRazon"></canvas></div>
+    </div>
+    <div class="panel c6">
+      <div class="ph"><div><div class="pt">Destino del Colaborador</div></div></div>
+      <div style="height:220px"><canvas id="cDestino"></canvas></div>
+    </div>
+  </div>
+
+  <!-- HEATMAP -->
+  <div class="cg">
+    <div class="panel c12">
+      <div class="ph"><div><div class="pt">Heatmap de Salidas — Departamento × Mes</div><div class="ps">Verde bajo · Ámbar medio · Rojo alto</div></div></div>
+      <div id="heatmapWrap"></div>
+    </div>
+  </div>
+
+  <!-- PLANILLA -->
+  <div class="sec">Planilla Mensual (₡)</div>
+  <div class="cg">
+    <div class="panel c8">
+      <div class="ph"><div><div class="pt">Evolución de Planilla Total</div><div class="ps">Suma real de salarios pagados por mes desde el sheet</div></div></div>
+      <div style="height:250px"><canvas id="cPlanilla"></canvas></div>
+    </div>
+    <div class="panel c4">
+      <div class="ph"><div><div class="pt">Resumen de Planilla</div></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px" id="planStats"></div>
+    </div>
+  </div>
+
+  <!-- INTERANUAL -->
+  <div class="sec">Comparación Interanual</div>
+  <div class="cg">
+    <div class="panel c12">
+      <div class="ph"><div><div class="pt">Headcount Mensual 2022 → 2026</div><div class="ps">Colaboradores con salario activo cada mes por año</div></div></div>
+      <div class="legend">
+        <span class="li"><span class="ld-dot" style="background:#4a6080"></span>2022</span>
+        <span class="li"><span class="ld-dot" style="background:#5a80b0"></span>2023</span>
+        <span class="li"><span class="ld-dot" style="background:#38bdf8"></span>2024</span>
+        <span class="li"><span class="ld-dot" style="background:#22d3a0"></span>2025</span>
+        <span class="li"><span class="ld-dot" style="background:#2dd4bf"></span>2026</span>
+      </div>
+      <div style="height:240px"><canvas id="cInteranual"></canvas></div>
+    </div>
+  </div>
+
+  <!-- FLUJO -->
+  <div class="cg">
+    <div class="panel c12">
+      <div class="ph"><div><div class="pt">Flujo Mensual: Ingresos vs Salidas</div><div class="ps">Basado en fechas reales de ingreso y salida</div></div></div>
+      <div class="legend">
+        <span class="li"><span class="ld-dot" style="background:var(--green)"></span>Ingresos</span>
+        <span class="li"><span class="ld-dot" style="background:var(--red)"></span>Salidas</span>
+        <span class="li"><span class="ld-dot" style="background:var(--amber)"></span>Balance neto</span>
+      </div>
+      <div style="height:230px"><canvas id="cFlujo"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ALERTAS -->
+  <div class="sec">Anomalías & Alertas</div>
+  <div class="cg">
+    <div class="panel c12">
+      <div class="ph">
+        <div><div class="pt">Panel de Alertas Inteligentes</div><div class="ps">Indicadores automáticos basados en umbrales</div></div>
+        <span class="chip red" id="chipAlertas">0 activas</span>
+      </div>
+      <div class="alert-list" id="alertList"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Joystick · People Analytics Dashboard · Datos desde Google Sheets</span>
+    <span id="footerTs"></span>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// CONFIG — URL base del Google Sheets publicado
+// ══════════════════════════════════════════════
+const SHEET_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub';
+const YEARS = [2022,2023,2024,2025,2026];
+
+// ══════════════════════════════════════════════
+// COLUMNAS EXACTAS (confirmadas visualmente)
+// Fila 1: vacía | Fila 2: headers | Fila 3+: datos
+// ══════════════════════════════════════════════
+// A=PAIS B=CONTRATO C=EMPRESA D=COLABORADOR E=DEPTO F=PUESTO
+// G=INGRESO H=NACIO I=GEN J=ESTADO K=HIJOS L=GRADO ACADEMICO
+// M=INGLÉS N=PROVINCIA O=CANTON P=FECHA SALIDA Q=MOTIVO SALIDA
+// R=RAZON SALIDA S=DESTINO COLABORADOR
+// T=ene-XX U=feb-XX V=mar-XX W=abr-XX X=may-XX Y=jun-XX
+// Z=jul-XX AA=ago-XX AB=sept-XX AC=oct-XX AD=nov-XX AE=dic-XX
+
+const COL = {
+  PAIS:0, CONTRATO:1, EMPRESA:2, COLABORADOR:3, DEPTO:4, PUESTO:5,
+  INGRESO:6, NACIO:7, GEN:8, ESTADO:9, HIJOS:10,
+  GRADO:11, INGLES:12, PROVINCIA:13, CANTON:14,
+  FECHA_SALIDA:15, MOTIVO_SALIDA:16, RAZON_SALIDA:17, DESTINO:18,
+  SAL_START:19  // índice donde empiezan los salarios (ene)
+};
+// 12 meses desde SAL_START
+const MO  = ['ene','feb','mar','abr','may','jun','jul','ago','sept','oct','nov','dic'];
+const MOL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MOF = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const PAL = ['#2dd4bf','#38bdf8','#a78bfa','#f472b6','#22d3a0','#fbbf24','#f87171','#818cf8','#fb923c','#34d399'];
+const YCOL= {2022:'#4a6080',2023:'#5a80b0',2024:'#38bdf8',2025:'#22d3a0',2026:'#2dd4bf'};
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+let RAW = [];
+let FILTERED = [];
+let CHARTS = {};
+let activeTalent = 'antig';
+
+// ══════════════════════════════════════════════
+// LOADER
+// ══════════════════════════════════════════════
+function ldBar(p){ const b=document.getElementById('ldBar'); if(b) b.style.width=p+'%'; }
+function ldMsg(m){ const e=document.getElementById('ldMsg'); if(e) e.textContent=m; }
+function ldTab(y,s){ const e=document.getElementById('lt'+y); if(e) e.className='ld-tab '+s; }
+
+// ══════════════════════════════════════════════
+// CSV PARSER — maneja comillas, comas dentro de campos
+// ══════════════════════════════════════════════
+function parseCSVRows(text){
+  const lines = text.replace(/\r/g,'').split('\n');
+  return lines.map(line => {
+    const row=[]; let cur=''; let q=false;
+    for(let i=0;i<line.length;i++){
+      const c=line[i];
+      if(c==='"'){ q=!q; continue; }
+      if(c===','&&!q){ row.push(cur.trim()); cur=''; continue; }
+      cur+=c;
+    }
+    row.push(cur.trim());
+    return row;
+  });
+}
+
+// ══════════════════════════════════════════════
+// PARSEAR SALARIO formato CR: "800.000" → 800000
+// ══════════════════════════════════════════════
+function parseSal(str){
+  if(!str||str===''||str==='0') return 0;
+  // Remover símbolos y espacios
+  let s = String(str).replace(/[₡\$\s]/g,'').trim();
+  if(!s || s==='-' || s.toLowerCase()==='n/a') return 0;
+  // Formato CR: punto como miles, coma como decimal
+  // "800.000" → 800000 | "1.237.500" → 1237500 | "773.334" → 773334
+  const dotCount = (s.match(/\./g)||[]).length;
+  const commaCount = (s.match(/,/g)||[]).length;
+  if(commaCount===1 && dotCount>=1){
+    // "1.200.000,50" → eliminar puntos, cambiar coma por punto
+    s = s.replace(/\./g,'').replace(',','.');
+  } else if(dotCount>=1 && commaCount===0){
+    // "800.000" o "1.237.500" → eliminar puntos (son miles)
+    s = s.replace(/\./g,'');
+  } else if(commaCount>=1 && dotCount===0){
+    // "800,000" → podría ser US format
+    s = s.replace(/,/g,'');
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+// ══════════════════════════════════════════════
+// PARSEAR FECHA formatos: d/m/yyyy, dd/mm/yyyy, m/d/yyyy
+// ══════════════════════════════════════════════
+function parseDate(str){
+  if(!str||str.length<6) return null;
+  const s=str.trim();
+  // ISO: yyyy-mm-dd
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return {y:+m[1],m:+m[2]-1,d:+m[3]};
+  // d/m/yyyy o dd/mm/yyyy
+  m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+  if(m){
+    const d=+m[1],mo=+m[2],y=+m[3];
+    // Si el "día" >12, seguro es día; si mes > 12, invertir
+    if(mo>12) return {y,m:d-1,d:mo};
+    return {y,m:mo-1,d};
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════
+// MAPEAR FILA → OBJETO colaborador
+// ══════════════════════════════════════════════
+function mapRow(row, year){
+  const g = (i) => (row[i]||'').trim();
+  const gv = (i) => g(i).replace(/^N\/A$/i,'').trim();
+
+  // Salarios: 12 columnas desde SAL_START
+  const salarios = {};
+  let totalSalario = 0;
+  for(let mi=0;mi<12;mi++){
+    const val = parseSal(g(COL.SAL_START + mi));
+    salarios[mi] = val;
+    totalSalario += val;
+  }
+
+  const fechaIngStr = gv(COL.INGRESO);
+  const fechaSalStr = gv(COL.FECHA_SALIDA);
+  const ingresoDate = parseDate(fechaIngStr);
+  const salidaDate  = fechaSalStr ? parseDate(fechaSalStr) : null;
+
+  // Activo = sin fecha de salida
+  const activo = !salidaDate;
+
+  // Edad desde NACIO
+  const nacStr = gv(COL.NACIO);
+  const nacDate = parseDate(nacStr);
+  let edad = 0;
+  if(nacDate){
+    const hoy = new Date();
+    edad = hoy.getFullYear() - nacDate.y - (hoy.getMonth() < nacDate.m ? 1 : 0);
+  }
+
+  // Antigüedad en meses desde INGRESO
+  let antiguedadMeses = 0;
+  if(ingresoDate){
+    const ref = salidaDate || {y:new Date().getFullYear(), m:new Date().getMonth()};
+    antiguedadMeses = Math.max(0, (ref.y - ingresoDate.y)*12 + (ref.m - ingresoDate.m));
+  }
+
+  return {
+    _year:        year,
+    pais:         gv(COL.PAIS),
+    contrato:     gv(COL.CONTRATO),
+    empresa:      gv(COL.EMPRESA),
+    colaborador:  gv(COL.COLABORADOR),
+    depto:        gv(COL.DEPTO),
+    puesto:       gv(COL.PUESTO),
+    genero:       gv(COL.GEN).toUpperCase() === 'F' ? 'F' : gv(COL.GEN).toUpperCase() === 'M' ? 'M' : gv(COL.GEN),
+    estado:       gv(COL.ESTADO),
+    hijos:        parseInt(gv(COL.HIJOS)) || 0,
+    grado:        gv(COL.GRADO),
+    ingles:       gv(COL.INGLES),
+    provincia:    gv(COL.PROVINCIA),
+    canton:       gv(COL.CANTON),
+    ingresoDate,  salidaDate,  nacDate,
+    edad,         antiguedadMeses,
+    motivoSalida: gv(COL.MOTIVO_SALIDA),
+    razonSalida:  gv(COL.RAZON_SALIDA),
+    destino:      gv(COL.DESTINO),
+    salarios,     totalSalario,
+    activo,
+  };
+}
+
+// ══════════════════════════════════════════════
+// FETCH UNA PESTAÑA
+// ══════════════════════════════════════════════
+async function fetchTab(year){
+  const url = `${SHEET_BASE}?output=csv&sheet=${year}`;
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.text();
+}
+
+// ══════════════════════════════════════════════
+// CARGAR TODOS LOS AÑOS Y CONSOLIDAR
+// ══════════════════════════════════════════════
+async function loadData(){
+  // rawPorAnio: datos crudos por año antes de consolidar
+  const rawPorAnio = {};
+  let loaded = 0;
+  ldBar(5); ldMsg('Conectando con Google Sheets...');
+
+  for(const year of YEARS){
+    ldTab(year,'active');
+    ldMsg(`Cargando pestaña ${year}...`);
+    try{
+      const csv = await fetchTab(year);
+      const rows = parseCSVRows(csv);
+      const headerRow = rows[0].some(c=>c.toUpperCase().includes('PAIS')||c.toUpperCase().includes('COLABORADOR')) ? 0 : 1;
+      const dataRows = rows.slice(headerRow+1);
+      const mapped = dataRows
+        .map(r => mapRow(r, year))
+        .filter(r => r.colaborador && r.colaborador.length > 2);
+      rawPorAnio[year] = mapped;
+      ldTab(year,'done');
+    }catch(e){
+      console.warn('Error pestaña',year,e);
+      ldTab(year,'fail');
+      rawPorAnio[year] = [];
+    }
+    loaded++;
+    ldBar(10 + loaded/YEARS.length*75);
+  }
+
+  ldBar(88); ldMsg('Consolidando colaboradores...');
+
+  // ── CONSOLIDACIÓN POR NOMBRE DE COLABORADOR ──
+  // Clave única = nombre del colaborador (normalizado)
+  // Cada persona aparece UNA sola vez en RAW
+  // Sus salarios se guardan por año: salariosPorAnio[año][0..11]
+  // Lógica: si tiene salario > 0 en un mes → estaba activo ese mes
+  //         si tiene 0 o vacío → no estaba activo ese mes
+  //         si tiene fecha de salida → salió en esa fecha
+
+  const mapa = {};
+
+  YEARS.forEach(year => {
+    (rawPorAnio[year]||[]).forEach(r => {
+      // Clave: solo nombre del colaborador normalizado
+      const clave = r.colaborador.toLowerCase().trim().replace(/\s+/g,' ');
+      if(!clave || clave.length < 2) return;
+
+      if(!mapa[clave]){
+        mapa[clave] = {
+          colaborador:  r.colaborador,
+          empresa:      r.empresa,
+          pais:         r.pais,
+          contrato:     r.contrato,
+          depto:        r.depto,
+          puesto:       r.puesto,
+          genero:       r.genero,
+          estado:       r.estado,
+          hijos:        r.hijos,
+          grado:        r.grado,
+          ingles:       r.ingles,
+          provincia:    r.provincia,
+          canton:       r.canton,
+          nacDate:      r.nacDate,
+          edad:         r.edad,
+          ingresoDate:  r.ingresoDate,
+          salidaDate:   null,
+          motivoSalida: '',
+          razonSalida:  '',
+          destino:      '',
+          activo:       true,
+          antiguedadMeses: 0,
+          _años:        [],
+          salariosPorAnio: {},
+        };
+      }
+
+      const col = mapa[clave];
+
+      // Agregar año a la lista
+      if(!col._años.includes(year)) col._años.push(year);
+
+      // Guardar salarios de este año tal como vienen del sheet
+      // 0 = no activo ese mes, >0 = activo ese mes
+      col.salariosPorAnio[year] = {};
+      for(let mi=0; mi<12; mi++){
+        col.salariosPorAnio[year][mi] = r.salarios[mi] || 0;
+      }
+
+      // Fecha de ingreso: la más antigua
+      if(r.ingresoDate){
+        if(!col.ingresoDate
+          || r.ingresoDate.y < col.ingresoDate.y
+          || (r.ingresoDate.y===col.ingresoDate.y && r.ingresoDate.m < col.ingresoDate.m)){
+          col.ingresoDate = r.ingresoDate;
+        }
+      }
+
+      // Fecha de salida: si existe en CUALQUIER año
+      if(r.salidaDate){
+        col.salidaDate   = r.salidaDate;
+        col.motivoSalida = r.motivoSalida || col.motivoSalida;
+        col.razonSalida  = r.razonSalida  || col.razonSalida;
+        col.destino      = r.destino      || col.destino;
+      }
+
+      // Actualizar datos demográficos con el año más reciente
+      if(year === Math.max(...col._años)){
+        col.empresa   = r.empresa   || col.empresa;
+        col.pais      = r.pais      || col.pais;
+        col.contrato  = r.contrato  || col.contrato;
+        col.depto     = r.depto     || col.depto;
+        col.puesto    = r.puesto    || col.puesto;
+        col.provincia = r.provincia || col.provincia;
+        col.canton    = r.canton    || col.canton;
+        col.estado    = r.estado    || col.estado;
+        col.grado     = r.grado     || col.grado;
+        col.ingles    = r.ingles    || col.ingles;
+        if(r.hijos !== undefined) col.hijos = r.hijos;
+        if(r.edad)   col.edad  = r.edad;
+        if(r.genero) col.genero = r.genero;
+      }
+    });
+  });
+
+  // Finalizar: calcular activo y antigüedad
+  RAW = Object.values(mapa).map(col => {
+    col._años.sort((a,b)=>a-b);
+
+    // Activo = sin fecha de salida
+    col.activo = !col.salidaDate;
+
+    // Antigüedad en meses desde ingreso
+    if(col.ingresoDate){
+      const ref = col.salidaDate || {y:new Date().getFullYear(), m:new Date().getMonth()};
+      col.antiguedadMeses = Math.max(0, (ref.y-col.ingresoDate.y)*12 + (ref.m-col.ingresoDate.m));
+    }
+
+    return col;
+  });
+
+  if(!RAW.length){
+    document.getElementById('loader').innerHTML = `
+      <div class="ld-logo">◈ <span>Joystick</span> People Analytics</div>
+      <div class="ld-err">
+        No se pudo cargar ningún dato.<br>
+        <b>Verifica que el sheet esté publicado como CSV</b><br>
+        y que las pestañas se llamen exactamente: 2022, 2023, 2024, 2025, 2026
+      </div>`;
+    return;
+  }
+
+  ldBar(94); ldMsg('Procesando datos...');
+  populateFilters();
+  ldBar(98); ldMsg('Renderizando dashboard...');
+  applyFilters();
+  ldBar(100);
+
+  setTimeout(()=>{
+    const ldr = document.getElementById('loader');
+    ldr.style.opacity = '0';
+    setTimeout(()=>{ ldr.style.display='none'; animFI(); }, 500);
+  }, 300);
+
+  document.getElementById('footerTs').textContent = 'Actualizado: '+new Date().toLocaleString('es-CR');
+}
+
+async function reloadData(){
+  const ldr = document.getElementById('loader');
+  ldr.innerHTML = `<div class="ld-logo">◈ <span>Joystick</span> People Analytics</div>
+  <div class="ld-tabs">${YEARS.map(y=>`<div class="ld-tab" id="lt${y}">${y}</div>`).join('')}</div>
+  <div class="ld-bar-wrap"><div class="ld-bar" id="ldBar"></div></div>
+  <div class="ld-msg" id="ldMsg">Recargando...</div>`;
+  ldr.style.display='flex'; ldr.style.opacity='1';
+  destroyCharts();
+  await loadData();
+}
+
+// ══════════════════════════════════════════════
+// POPULATE FILTERS
+// ══════════════════════════════════════════════
+function uniq(key){ return [...new Set(RAW.map(r=>r[key]).filter(v=>v&&v!=='N/D'))].sort(); }
+
+function fillSel(id, vals, label){
+  const s = document.getElementById(id);
+  if(!s) return;
+  s.innerHTML = `<option value="all">${label}: Todos</option>`+
+    vals.map(v=>`<option value="${v}">${v}</option>`).join('');
+}
+
+function populateFilters(){
+  fillSel('selDepto', uniq('depto'), 'Depto');
+  fillSel('selContrato', uniq('contrato'), 'Contrato');
+  fillSel('selPais', uniq('pais'), 'País');
+  fillSel('selProv', uniq('provincia'), 'Provincia');
+
+  const total   = RAW.length;
+  const activos = RAW.filter(r=>r.activo).length;
+  const salidas = RAW.filter(r=>!r.activo && r.salidaDate).length;
+  const yrs     = [...new Set(RAW.flatMap(r=>r._años||[]))].sort();
+
+  document.getElementById('chipTotal').textContent   = total.toLocaleString()+' colaboradores únicos';
+  document.getElementById('chipAnios').textContent   = yrs.join(', ');
+  document.getElementById('chipActivos').textContent = activos.toLocaleString()+' activos';
+  document.getElementById('chipSalidas').textContent = salidas.toLocaleString()+' salidas';
+  document.getElementById('srcTxt').textContent      = `Google Sheets · ${total.toLocaleString()} colaboradores únicos · ${yrs.length} año(s)`;
+}
+
+// ══════════════════════════════════════════════
+// FILTERS
+// ══════════════════════════════════════════════
+function setYearPill(val, el){
+  // Sincronizar pill activo
+  document.querySelectorAll('#filtersBar .f-pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  // Sincronizar dropdown del header
+  document.getElementById('selYear').value = val;
+  applyFilters();
+}
+
+// Cuando cambia el dropdown del header, sincronizar pills
+function onYearDropdownChange(){
+  const val = document.getElementById('selYear').value;
+  document.querySelectorAll('#filtersBar .f-pill').forEach(p => {
+    const pillVal = p.getAttribute('data-year') || p.textContent.trim();
+    p.classList.toggle('active', pillVal === val || (val === 'all' && pillVal === 'Todos'));
+  });
+  applyFilters();
+}
+
+// ══════════════════════════════════════════════
+// MES PICKER — multi-select con checkboxes
+// ══════════════════════════════════════════════
+const MOF_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+let selectedMeses = null; // null = todos | array de índices
+let modoActual = 'todo';  // 'especifico' | 'acumulado' | 'todo'
+
+function initMesPicker(){
+  const container = document.getElementById('mesChecks');
+  container.innerHTML = MOF_FULL.map((m,i)=>`
+    <div class="mes-check-item" id="mc${i}" onclick="toggleMes(${i})">
+      <div class="mes-check-box" id="mcb${i}"></div>
+      <span>${m}</span>
+    </div>`).join('');
+  updateModoHint();
+  // Cerrar al click fuera
+  document.addEventListener('click', e=>{
+    const picker = document.getElementById('mesPicker');
+    if(picker && !picker.contains(e.target)){
+      document.getElementById('mesDropdown').style.display='none';
+    }
+  });
+}
+
+function toggleMesPicker(e){
+  e.stopPropagation();
+  const dd = document.getElementById('mesDropdown');
+  dd.style.display = dd.style.display==='none' ? 'block' : 'none';
+}
+
+function setModo(modo, el){
+  modoActual = modo;
+  document.querySelectorAll('.modo-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  // En modo "todo" → deseleccionar todos los checks y deshabilitar
+  if(modo === 'todo'){
+    selectedMeses = null;
+    MOF_FULL.forEach((_,i)=>setCheck(i,false));
+    document.getElementById('mesChecks').style.opacity='0.35';
+    document.getElementById('mesChecks').style.pointerEvents='none';
+  } else {
+    document.getElementById('mesChecks').style.opacity='1';
+    document.getElementById('mesChecks').style.pointerEvents='auto';
+    if(selectedMeses===null) selectedMeses=[];
+  }
+  updateModoHint();
+}
+
+function updateModoHint(){
+  const hints = {
+    'especifico': '📌 Selecciona uno o varios meses puntuales. Muestra solo la data de esos meses.',
+    'acumulado':  '📈 Selecciona el mes final. Acumula desde Enero hasta ese mes (YTD).',
+    'todo':       '📅 Muestra todos los meses del año sin filtro de mes.'
+  };
+  const el = document.getElementById('modoHint');
+  if(el) el.textContent = hints[modoActual]||'';
+}
+
+function toggleMes(i){
+  if(modoActual==='todo') return;
+  if(!selectedMeses) selectedMeses=[];
+  if(modoActual==='acumulado'){
+    // En modo acumulado: seleccionar de 0 hasta i
+    selectedMeses = Array.from({length:i+1},(_,k)=>k);
+    MOF_FULL.forEach((_,k)=>setCheck(k, k<=i));
+  } else {
+    // Modo específico: toggle individual
+    const idx = selectedMeses.indexOf(i);
+    if(idx>=0) selectedMeses.splice(idx,1);
+    else selectedMeses.push(i);
+    selectedMeses.sort((a,b)=>a-b);
+    setCheck(i, selectedMeses.includes(i));
+  }
+}
+
+function setCheck(i, checked){
+  const item = document.getElementById('mc'+i);
+  const box  = document.getElementById('mcb'+i);
+  if(!item||!box) return;
+  item.classList.toggle('checked', checked);
+  box.textContent = checked ? '✓' : '';
+}
+
+function seleccionarTodosMeses(){
+  if(modoActual==='todo') return;
+  selectedMeses = Array.from({length:12},(_,i)=>i);
+  MOF_FULL.forEach((_,i)=>setCheck(i,true));
+}
+
+function limpiarMeses(){
+  if(modoActual==='todo') return;
+  selectedMeses = [];
+  MOF_FULL.forEach((_,i)=>setCheck(i,false));
+}
+
+function aplicarMeses(){
+  document.getElementById('mesDropdown').style.display='none';
+  actualizarMesLabel();
+  applyFilters();
+}
+
+function actualizarMesLabel(){
+  const label = document.getElementById('mesLabel');
+  if(!label) return;
+  if(modoActual==='todo' || !selectedMeses || selectedMeses.length===0){
+    label.textContent = 'Todos los meses';
+  } else if(selectedMeses.length===12){
+    label.textContent = 'Todos los meses';
+  } else if(modoActual==='acumulado' && selectedMeses.length>0){
+    const last = selectedMeses[selectedMeses.length-1];
+    label.textContent = `Ene → ${MOF_FULL[last]}`;
+  } else if(selectedMeses.length===1){
+    label.textContent = MOF_FULL[selectedMeses[0]];
+  } else {
+    label.textContent = selectedMeses.map(i=>MOF_FULL[i].slice(0,3)).join(', ');
+  }
+}
+
+// ── Devuelve los índices de mes activos según modo y selección ──
+function getMesesActivos(){
+  if(modoActual==='todo' || !selectedMeses || selectedMeses.length===0) return null;
+  return [...selectedMeses];
+}
+
+// ── Etiqueta descriptiva del período activo ──
+function getPeriodoLabel(){
+  const year = document.getElementById('selYear').value;
+  const yrLabel = year==='all'?'Todos los años':year;
+  const ma = getMesesActivos();
+  if(!ma) return `📅 Todo el año · ${yrLabel}`;
+  if(modoActual==='acumulado' && ma.length>0)
+    return `📈 Ene → ${MOF_FULL[ma[ma.length-1]]} · ${yrLabel}`;
+  if(ma.length===1) return `📌 ${MOF_FULL[ma[0]]} · ${yrLabel}`;
+  return `📌 ${ma.map(i=>MOF_FULL[i].slice(0,3)).join(', ')} · ${yrLabel}`;
+}
+
+function applyFilters(){
+  if(!RAW.length) return;
+  const year    = document.getElementById('selYear').value;
+  const depto   = document.getElementById('selDepto').value;
+  const contrato= document.getElementById('selContrato').value;
+  const gen     = document.getElementById('selGen').value;
+  const pais    = document.getElementById('selPais').value;
+  const prov    = document.getElementById('selProv').value;
+  const mesesActivos = getMesesActivos();
+
+  FILTERED = RAW.filter(r => {
+    // Filtro de año: incluir persona solo si tuvo salario > 0 en algún mes de ese año
+    if(year !== 'all'){
+      const y = parseInt(year);
+      const sal = r.salariosPorAnio && r.salariosPorAnio[y];
+      if(!sal) return false;
+      // Debe tener AL MENOS un mes con salario en ese año
+      const tieneAlgoEseAnio = Object.values(sal).some(v => v > 0);
+      if(!tieneAlgoEseAnio) return false;
+    }
+
+    // Filtros de mes: si hay meses seleccionados, debe tener salario en esos meses
+    if(mesesActivos !== null && year !== 'all'){
+      const y = parseInt(year);
+      const sal = r.salariosPorAnio && r.salariosPorAnio[y];
+      if(!sal) return false;
+      const tieneMes = mesesActivos.some(mi => (sal[mi]||0) > 0);
+      if(!tieneMes) return false;
+    }
+
+    // Filtros demográficos
+    if(depto   !== 'all' && r.depto     !== depto)   return false;
+    if(contrato!== 'all' && r.contrato  !== contrato) return false;
+    if(gen     !== 'all' && r.genero    !== gen)      return false;
+    if(pais    !== 'all' && r.pais      !== pais)     return false;
+    if(prov    !== 'all' && r.provincia !== prov)     return false;
+
+    return true;
+  });
+
+  // Actualizar chip de período
+  const chipP = document.getElementById('chipPeriodo');
+  if(chipP) chipP.textContent = getPeriodoLabel();
+
+  destroyCharts();
+  renderAll();
+}
+
+function resetFilters(){
+  document.getElementById('selYear').value='all';
+  document.getElementById('selDepto').value='all';
+  document.getElementById('selContrato').value='all';
+  document.getElementById('selGen').value='all';
+  document.getElementById('selPais').value='all';
+  document.getElementById('selProv').value='all';
+  // Sincronizar pills de año
+  document.querySelectorAll('#filtersBar .f-pill').forEach(p =>
+    p.classList.toggle('active', p.getAttribute('data-year')==='all')
+  );
+  // Reset mes picker
+  modoActual='todo';
+  selectedMeses=null;
+  MOF_FULL.forEach((_,i)=>setCheck(i,false));
+  document.querySelectorAll('.modo-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('modo-todo').classList.add('active');
+  document.getElementById('mesChecks').style.opacity='0.35';
+  document.getElementById('mesChecks').style.pointerEvents='none';
+  actualizarMesLabel();
+  applyFilters();
+}
+
+function destroyCharts(){
+  Object.values(CHARTS).forEach(c=>{try{c.destroy();}catch(e){}});
+  CHARTS={};
+}
+
+// ══════════════════════════════════════════════
+// RENDER ALL
+// ══════════════════════════════════════════════
+function renderAll(){
+  renderKPIs();
+  renderTend();
+  renderDepto();
+  renderGen();
+  renderContrato();
+  renderEstado();
+  renderPais();
+  renderTalent(activeTalent);
+  renderProg('progAcad','grado');
+  renderProg('progIngles','ingles');
+  renderProgProv();
+  renderProgCanton();
+  renderPuestos();
+  renderRotacion();
+  renderMotivo();
+  renderRazon();
+  renderDestino();
+  renderHeatmap();
+  renderPlanilla();
+  renderInteranual();
+  renderFlujo();
+  renderAlertas();
+  animFI();
+}
+
+// ══════════════════════════════════════════════
+// FUNCIÓN CENTRAL: headcount de un mes/año específico
+// Regla: contar personas que tienen salario > 0 en ese mes de ese año
+// Es exactamente el número de celdas con valor en el sheet
+// ══════════════════════════════════════════════
+function headcountMesAnio(rows, year, mes){
+  return rows.filter(r =>
+    r.salariosPorAnio &&
+    r.salariosPorAnio[year] &&
+    (r.salariosPorAnio[year][mes] || 0) > 0
+  ).length;
+}
+
+// Headcount cierre de año = headcount del último mes con datos en ese año
+function headcountCierreAnio(rows, year){
+  for(let mi = 11; mi >= 0; mi--){
+    const hc = headcountMesAnio(rows, year, mi);
+    if(hc > 0){
+      console.log(`[HC] Cierre año ${year}: mes ${mi} (${MOL[mi]}) = ${hc} personas`);
+      return { hc, mes: mi };
+    }
+  }
+  return { hc: 0, mes: -1 };
+}
+
+// ══════════════════════════════════════════════
+// KPIs
+// ══════════════════════════════════════════════
+function renderKPIs(){
+  const F  = FILTERED;
+  const yr = document.getElementById('selYear').value;
+  const mesesActivos = getMesesActivos();
+
+  let activos, activosMes, salidas, ingresos, planTotal, planMes;
+
+  if(yr === 'all'){
+    const maxY   = Math.max(...YEARS.filter(y => F.some(r => r.salariosPorAnio && r.salariosPorAnio[y])));
+    const cierre = headcountCierreAnio(F, maxY);
+    activos    = cierre.hc;
+    activosMes = cierre.mes >= 0 ? `Cierre ${MOL[cierre.mes]}-${maxY}` : 'Todos los años';
+    salidas    = F.filter(r => r.salidaDate).length;
+    ingresos   = F.filter(r => r.ingresoDate).length;
+    planTotal  = F.reduce((s,r) => s + YEARS.reduce((ys,y) => {
+      if(!r.salariosPorAnio||!r.salariosPorAnio[y]) return ys;
+      return ys + MO.reduce((ms,_,mi) => ms+(r.salariosPorAnio[y][mi]||0),0);
+    },0),0);
+    planMes = planTotal / (YEARS.length*12) || 0;
+  } else {
+    const y = parseInt(yr);
+    if(mesesActivos && mesesActivos.length > 0){
+      const lastMes = mesesActivos[mesesActivos.length-1];
+      activos    = headcountMesAnio(F, y, lastMes);
+      activosMes = `${MOL[lastMes]}-${yr}`;
+    } else {
+      const cierre = headcountCierreAnio(F, y);
+      activos    = cierre.hc;
+      activosMes = cierre.mes >= 0 ? `Cierre ${MOL[cierre.mes]}-${yr}` : yr;
+    }
+    salidas = F.filter(r => {
+      if(!r.salidaDate || r.salidaDate.y !== y) return false;
+      if(mesesActivos && !mesesActivos.includes(r.salidaDate.m)) return false;
+      return true;
+    }).length;
+    ingresos = F.filter(r => {
+      if(!r.ingresoDate || r.ingresoDate.y !== y) return false;
+      if(mesesActivos && !mesesActivos.includes(r.ingresoDate.m)) return false;
+      return true;
+    }).length;
+    const mesesPlan = mesesActivos !== null ? mesesActivos : MO.map((_,i)=>i);
+    planTotal = F.reduce((s,r) => {
+      if(!r.salariosPorAnio||!r.salariosPorAnio[y]) return s;
+      return s + mesesPlan.reduce((ms,mi) => ms+(r.salariosPorAnio[y][mi]||0),0);
+    },0);
+    planMes = mesesPlan.length > 0 ? planTotal/mesesPlan.length : 0;
+  }
+
+  // Debug en consola del navegador
+  console.log(`[DASH] Año:${yr} FILTERED:${F.length} Activos:${activos}(${activosMes}) Salidas:${salidas} Ingresos:${ingresos}`);
+
+  const total   = F.length || 1;
+  const mujeres = F.filter(r => r.genero==='F').length;
+  const pctF    = Math.round(mujeres/total*100);
+  const rotTasa = activos ? +(salidas/activos*100).toFixed(1) : 0;
+
+  // Comparación año anterior
+  const prevYr = yr==='all' ? null : String(+yr-1);
+  const prevF  = prevYr ? RAW.filter(r => r._años && r._años.includes(parseInt(prevYr))) : [];
+  const prevCierre = prevYr ? headcountCierreAnio(prevF, parseInt(prevYr)) : {hc:0};
+  const prevAct = prevCierre.hc;
+  const prevSal = prevF.filter(r => r.salidaDate && r.salidaDate.y===parseInt(prevYr)).length;
+  const chgAct  = prevAct ? ((activos-prevAct)/prevAct*100).toFixed(1) : null;
+  const chgSal  = prevSal ? ((salidas-prevSal)/prevSal*100).toFixed(1) : null;
+
+  const periodoLabel = getPeriodoLabel();
+
+  const kpis = [
+    {lbl:'Headcount Activo', val:activos.toLocaleString(),
+     badge:chgAct?(+chgAct>=0?'↑':'↓')+Math.abs(chgAct)+'%':null,
+     bt:chgAct?(+chgAct>=0?'up':'dn'):'nt',
+     ctx:activosMes + (prevAct?` · vs ${prevAct} año ant.`:''),
+     color:'t-teal', spark:true},
+    {lbl:'Ingresos del Período', val:ingresos.toLocaleString(),
+     badge:null, bt:'nt', ctx:periodoLabel,
+     color:'t-cyan', spark:false},
+    {lbl:'Salidas del Período', val:salidas,
+     badge:chgSal?(+chgSal>=0?'↑':'↓')+Math.abs(chgSal)+'%':null,
+     bt:chgSal?(+chgSal<=0?'up':'dn'):'nt',
+     ctx:`Tasa: ${rotTasa}% · Meta <5%`,
+     color:rotTasa>5?'t-red':'t-green', spark:false},
+    {lbl:'Índice de Género F', val:pctF+'%',
+     badge:`${mujeres} mujeres`, bt:'nt',
+     ctx:'Proporción femenina en la plantilla',
+     color:'t-purple', spark:false},
+    {lbl:'Planilla del Período', val:'₡'+fmtN(planTotal),
+     badge:null, bt:'nt',
+     ctx:`Prom. mensual: ₡${fmtN(planMes)}`,
+     color:'t-amber', spark:false},
+    {lbl:'Tasa de Rotación', val:rotTasa+'%',
+     badge:rotTasa>5?'⚠ Alta':rotTasa>3?'Precaución':'✓ OK',
+     bt:rotTasa>5?'dn':rotTasa>3?'nt':'up',
+     ctx:`${salidas} salidas / ${activos} activos`,
+     color:rotTasa>5?'t-red':rotTasa>3?'t-amber':'t-teal', spark:false},
+  ];
+
+  document.getElementById('kpiGrid').innerHTML = kpis.map((k,i)=>`
+    <div class="kpi ${k.color} fi" style="transition-delay:${i*50}ms">
+      <div class="kpi-lbl">${k.lbl}</div>
+      <div class="kpi-row">
+        <span class="kpi-val">${k.val}</span>
+        ${k.badge?`<span class="kpi-badge ${k.bt}">${k.badge}</span>`:''}
+      </div>
+      <div class="kpi-ctx">${k.ctx}</div>
+      ${k.spark?`<div class="kpi-spark"><canvas id="spk${i}" height="32"></canvas></div>`:''}
+    </div>`).join('');
+
+  // Sparkline: headcount por mes en el año filtrado
+  kpis.forEach((k,i)=>{
+    if(!k.spark) return;
+    const ctx = document.getElementById('spk'+i); if(!ctx) return;
+    const y = yr==='all' ? Math.max(...YEARS) : parseInt(yr);
+    const data = MO.map((_,mi) =>
+      F.filter(r => r.salariosPorAnio && r.salariosPorAnio[y] && (r.salariosPorAnio[y][mi]||0) > 0).length
+    );
+    const mesesActivos = getMesesActivos();
+    const borderColors = MO.map((_,mi) =>
+      mesesActivos===null || mesesActivos.includes(mi) ? '#2dd4bf' : '#2dd4bf44'
+    );
+    CHARTS['spk'+i] = new Chart(ctx,{
+      type:'line',
+      data:{labels:MOL,datasets:[{data,borderColor:'#2dd4bf',backgroundColor:'#2dd4bf18',fill:true,tension:.4,borderWidth:1.5,pointRadius:3,pointBackgroundColor:borderColors}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}},animation:{duration:600}}
+    });
+  });
+}
+
+function fmtN(n){
+  if(n>=1e9) return (n/1e9).toFixed(2)+'B';
+  if(n>=1e6) return (n/1e6).toFixed(2)+'M';
+  if(n>=1e3) return (n/1e3).toFixed(0)+'K';
+  return Math.round(n).toLocaleString('es-CR');
+}
+
+// ══════════════════════════════════════════════
+// TENDENCIA MENSUAL
+// Headcount mes = celdas con salario > 0 en ese mes/año exacto
+// ══════════════════════════════════════════════
+function renderTend(){
+  const F  = FILTERED;
+  const yr = document.getElementById('selYear').value;
+
+  let datasets;
+
+  if(yr === 'all'){
+    // Mostrar línea por cada año disponible
+    datasets = YEARS.map(y => ({
+      label: String(y),
+      data:  MO.map((_,mi) => headcountMesAnio(F, y, mi)),
+      borderColor: YCOL[y],
+      bg: 'transparent', fill: false,
+      bw: y===2026?2.5:1.5, pr: y===2026?3:2
+    }));
+    document.getElementById('badgeTend').textContent = 'Todos los años';
+  } else {
+    const y = parseInt(yr);
+    // Headcount por mes = celdas con salario en ese mes de ese año
+    const hc  = MO.map((_,mi) => headcountMesAnio(F, y, mi));
+    // Ingresos = personas cuya fecha ingreso cae en ese mes/año
+    const ing = MO.map((_,mi) =>
+      F.filter(r => r.ingresoDate && r.ingresoDate.y===y && r.ingresoDate.m===mi).length
+    );
+    // Salidas = personas cuya fecha salida cae en ese mes/año
+    const sal = MO.map((_,mi) =>
+      F.filter(r => r.salidaDate && r.salidaDate.y===y && r.salidaDate.m===mi).length
+    );
+    datasets = [
+      {label:'Headcount', data:hc,  borderColor:'#2dd4bf', bg:'#2dd4bf18', fill:true},
+      {label:'Ingresos',  data:ing, borderColor:'#22d3a0', bg:'transparent', fill:false, dash:[5,3]},
+      {label:'Salidas',   data:sal, borderColor:'#f87171', bg:'transparent', fill:false, dash:[3,3]},
+    ];
+    document.getElementById('badgeTend').textContent = getPeriodoLabel();
+  }
+
+  CHARTS.tend = mkLine('cTend', MOL, datasets);
+}
+
+// ══════════════════════════════════════════════
+// DEPARTAMENTO
+// ══════════════════════════════════════════════
+function renderDepto(){
+  const c=countBy(FILTERED.filter(r=>r.activo),'depto');
+  const s=Object.entries(c).sort((a,b)=>b[1]-a[1]);
+  CHARTS.depto = mkBar('cDepto',s.map(x=>x[0]),s.map(x=>x[1]),PAL,true);
+}
+
+// ══════════════════════════════════════════════
+// DONUTS DEMO
+// ══════════════════════════════════════════════
+function renderGen(){
+  const c=countBy(FILTERED,'genero');
+  const cols=Object.keys(c).map(l=>l==='F'?'#f472b6':l==='M'?'#38bdf8':'#a78bfa');
+  CHARTS.gen=mkDonut('cGen',Object.keys(c),Object.values(c),cols);
+}
+function renderContrato(){
+  const c=countBy(FILTERED,'contrato');
+  CHARTS.cont=mkDonut('cContrato',Object.keys(c),Object.values(c));
+}
+function renderEstado(){
+  const c=countBy(FILTERED,'estado');
+  CHARTS.estado=mkDonut('cEstado',Object.keys(c),Object.values(c));
+}
+function renderPais(){
+  const c=countBy(FILTERED,'pais');
+  CHARTS.pais=mkDonut('cPais',Object.keys(c),Object.values(c));
+}
+
+// ══════════════════════════════════════════════
+// TALENT TABS
+// ══════════════════════════════════════════════
+function switchTalent(tab,el){
+  activeTalent=tab;
+  document.querySelectorAll('#talTabs .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  if(CHARTS.talent){CHARTS.talent.destroy();delete CHARTS.talent;}
+  renderTalent(tab);
+}
+function renderTalent(tab){
+  const rows=FILTERED;
+  let labels,data,color;
+  if(tab==='antig'){
+    const b=[['<6m',0,6],['6-12m',6,12],['1-2a',12,24],['2-5a',24,60],['5-10a',60,120],['+10a',120,9999]];
+    labels=b.map(x=>x[0]); color='#2dd4bf';
+    data=b.map(([,lo,hi])=>rows.filter(r=>r.antiguedadMeses>=lo&&r.antiguedadMeses<hi).length);
+  } else if(tab==='edad'){
+    const b=[['<25',0,25],['25-30',25,31],['31-35',31,36],['36-40',36,41],['41-50',41,51],['+50',51,99]];
+    labels=b.map(x=>x[0]); color='#fbbf24';
+    data=b.map(([,lo,hi])=>rows.filter(r=>r.edad>=lo&&r.edad<hi).length);
+  } else {
+    labels=['0','1','2','3','4+']; color='#a78bfa';
+    data=[0,1,2,3].map(n=>rows.filter(r=>r.hijos===n).length);
+    data.push(rows.filter(r=>r.hijos>=4).length);
+  }
+  CHARTS.talent=mkBar('cTalent',labels,data,[color],false);
+}
+
+// ══════════════════════════════════════════════
+// PROGRESS BARS
+// ══════════════════════════════════════════════
+function renderProg(elId,field){
+  const c=countBy(FILTERED,field);
+  const total=FILTERED.length||1;
+  const s=Object.entries(c).filter(([k])=>k&&k!=='N/D').sort((a,b)=>b[1]-a[1]);
+  const el=document.getElementById(elId);
+  if(!el) return;
+  el.innerHTML = s.length ? s.map(([lbl,n],i)=>{
+    const pct=Math.round(n/total*100);
+    return `<div class="prog-row">
+      <div class="prog-hdr"><span class="prog-lbl">${lbl}</span><span class="prog-v">${pct}%<span style="color:var(--text3)"> (${n})</span></span></div>
+      <div class="prog-bg"><div class="prog-bar" style="width:${pct}%;background:${PAL[i%PAL.length]}"></div></div>
+    </div>`;
+  }).join('') : '<div class="empty">Sin datos</div>';
+}
+
+function renderProgProv(){
+  const c=countBy(FILTERED,'provincia');
+  const total=FILTERED.length||1;
+  const s=Object.entries(c).filter(([k])=>k&&k!=='N/D').sort((a,b)=>b[1]-a[1]).slice(0,8);
+  document.getElementById('progProv').innerHTML = s.map(([lbl,n],i)=>{
+    const pct=Math.round(n/total*100);
+    return `<div class="prog-row">
+      <div class="prog-hdr"><span class="prog-lbl">${lbl}</span><span class="prog-v">${n.toLocaleString()}<span style="color:var(--text3)"> (${pct}%)</span></span></div>
+      <div class="prog-bg"><div class="prog-bar" style="width:${pct}%;background:${PAL[i%PAL.length]}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderProgCanton(){
+  const c=countBy(FILTERED,'canton');
+  const total=FILTERED.length||1;
+  const s=Object.entries(c).filter(([k])=>k&&k!=='N/D').sort((a,b)=>b[1]-a[1]).slice(0,8);
+  document.getElementById('progCanton').innerHTML = s.map(([lbl,n],i)=>{
+    const pct=Math.round(n/total*100);
+    return `<div class="prog-row">
+      <div class="prog-hdr"><span class="prog-lbl">${lbl}</span><span class="prog-v">${n}</span></div>
+      <div class="prog-bg"><div class="prog-bar" style="width:${pct}%;background:${PAL[i%PAL.length]}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// PUESTOS TABLE
+// ══════════════════════════════════════════════
+function renderPuestos(){
+  const activos=FILTERED.filter(r=>r.activo);
+  const total=activos.length||1;
+  const c=countBy(activos,'puesto');
+  const s=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  // Para cada puesto, el depto más frecuente
+  const deptoMap={};
+  s.forEach(([p])=>{
+    const dd=countBy(activos.filter(r=>r.puesto===p),'depto');
+    deptoMap[p]=Object.entries(dd).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
+  });
+
+  document.querySelector('#tblPuestos tbody').innerHTML = s.map(([p,n],i)=>{
+    const pct=Math.round(n/total*100);
+    return `<tr>
+      <td style="color:var(--text3);font-family:var(--mono)">${i+1}</td>
+      <td style="color:var(--text)">${p||'N/D'}</td>
+      <td style="font-family:var(--mono);font-weight:500;color:var(--text)">${n.toLocaleString()}</td>
+      <td><div style="display:flex;align-items:center;gap:6px">
+        <div class="tbar-bg" style="flex:1"><div class="tbar" style="width:${pct}%;background:var(--teal)"></div></div>
+        <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">${pct}%</span>
+      </div></td>
+      <td style="color:var(--text3)">${deptoMap[p]}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// ROTACIÓN — respeta meses activos
+// ══════════════════════════════════════════════
+function renderRotacion(){
+  const F  = FILTERED;
+  const yr = document.getElementById('selYear').value;
+  const mesesActivos = getMesesActivos();
+  const y  = yr==='all' ? null : parseInt(yr);
+
+  // Headcount por mes usando la función central
+  const hc = MO.map((_,mi) => {
+    if(y !== null) return headcountMesAnio(F, y, mi);
+    // Todos los años: headcount del año más reciente
+    const maxY = Math.max(...YEARS);
+    return headcountMesAnio(F, maxY, mi);
+  });
+
+  // Salidas por mes
+  const sal = MO.map((_,mi) =>
+    F.filter(r => {
+      if(!r.salidaDate || r.salidaDate.m !== mi) return false;
+      return y === null || r.salidaDate.y === y;
+    }).length
+  );
+
+  const rates = hc.map((h,i) => h > 0 ? +(sal[i]/h*100).toFixed(2) : 0);
+
+  const bgColors = rates.map((r,i) => {
+    const inPeriod = mesesActivos===null || mesesActivos.includes(i);
+    const base = r>5?'#f87171':r>3?'#fbbf24':'#22d3a0';
+    return base + (inPeriod?'cc':'33');
+  });
+  const bdColors = rates.map((r,i) => {
+    const inPeriod = mesesActivos===null || mesesActivos.includes(i);
+    const base = r>5?'#f87171':r>3?'#fbbf24':'#22d3a0';
+    return inPeriod ? base : base+'55';
+  });
+
+  CHARTS.rot = new Chart(document.getElementById('cRot'),{
+    type:'bar',
+    data:{labels:MOL,datasets:[{data:rates,backgroundColor:bgColors,borderColor:bdColors,borderWidth:1,borderRadius:4}]},
+    options:{...BASE_OPTS(),plugins:{...BASE_OPTS().plugins,tooltip:{...BASE_OPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.raw}% rotación`}}}}
+  });
+}
+
+// ══════════════════════════════════════════════
+// SALIDAS — Motivo, Razón, Destino
+// ══════════════════════════════════════════════
+function renderMotivo(){
+  const c=countBy(FILTERED.filter(r=>r.motivoSalida&&r.motivoSalida!=='N/A'),'motivoSalida');
+  const s=Object.entries(c).sort((a,b)=>b[1]-a[1]);
+  if(!s.length){empty('cMotivo');return;}
+  CHARTS.motivo=mkBar('cMotivo',s.map(x=>x[0]),s.map(x=>x[1]),PAL,true);
+}
+function renderRazon(){
+  const c=countBy(FILTERED.filter(r=>r.razonSalida&&r.razonSalida!=='NA'),'razonSalida');
+  const s=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(!s.length){empty('cRazon');return;}
+  CHARTS.razon=mkBar('cRazon',s.map(x=>x[0]),s.map(x=>x[1]),['#38bdf8'],true);
+}
+function renderDestino(){
+  const c=countBy(FILTERED.filter(r=>r.destino),'destino');
+  if(!Object.keys(c).length){empty('cDestino');return;}
+  CHARTS.dest=mkDonut('cDestino',Object.keys(c),Object.values(c));
+}
+
+// ══════════════════════════════════════════════
+// HEATMAP salidas depto × mes
+// ══════════════════════════════════════════════
+function renderHeatmap(){
+  const deptos=[...new Set(FILTERED.map(r=>r.depto).filter(Boolean))].sort();
+  const wrap=document.getElementById('heatmapWrap');
+  if(!deptos.length){wrap.innerHTML='<div class="empty">Sin datos de departamento</div>';return;}
+  const matrix=deptos.map(d=>MO.map((_,mi)=>FILTERED.filter(r=>r.depto===d&&r.salidaDate&&r.salidaDate.m===mi).length));
+  const maxV=Math.max(...matrix.flat(),1);
+  wrap.innerHTML=`<div class="hm-wrap">
+    <div class="hm-ylabels">${deptos.map(d=>`<div class="hm-ylabel">${d}</div>`).join('')}</div>
+    <div class="hm-body">
+      <div class="hm-xlabels">${MOL.map(m=>`<div class="hm-xlabel">${m}</div>`).join('')}</div>
+      ${matrix.map((row,di)=>`<div class="hm-row">${row.map((v,mi)=>{
+        const t=v/maxV;
+        const bg=t>.6?`rgba(248,113,113,${.12+t*.8})`:t>.3?`rgba(251,191,36,${.12+t*.7})`:`rgba(45,212,191,${.05+t*.5})`;
+        return `<div class="hm-cell" style="background:${bg}" title="${deptos[di]} · ${MOF[mi]}: ${v} salidas">${v||''}</div>`;
+      }).join('')}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// PLANILLA — suma real según período seleccionado
+// ══════════════════════════════════════════════
+function renderPlanilla(){
+  const F  = FILTERED;
+  const yr = document.getElementById('selYear').value;
+  const mesesActivos   = getMesesActivos();
+  const aniosFiltrados = yr==='all' ? YEARS : [parseInt(yr)];
+  const mesesPlan      = mesesActivos !== null ? mesesActivos : MO.map((_,i)=>i);
+
+  // Suma de salarios por mes (todos los años del filtro combinados)
+  const data = MO.map((_,mi) =>
+    F.reduce((sum, r) =>
+      sum + aniosFiltrados.reduce((ys, y) =>
+        ys + ((r.salariosPorAnio&&r.salariosPorAnio[y]&&r.salariosPorAnio[y][mi])||0)
+      , 0)
+    , 0)
+  );
+
+  const bgColors = data.map((_,mi) =>
+    mesesActivos===null||mesesActivos.includes(mi) ? '#2dd4bf55' : '#2dd4bf18'
+  );
+  const bdColors = data.map((_,mi) =>
+    mesesActivos===null||mesesActivos.includes(mi) ? '#2dd4bf' : '#2dd4bf44'
+  );
+
+  const ctx = document.getElementById('cPlanilla');
+  CHARTS.plan = new Chart(ctx,{
+    type:'bar',
+    data:{labels:MOL,datasets:[{data,backgroundColor:bgColors,borderColor:bdColors,borderWidth:1.5,borderRadius:4}]},
+    options:{...BASE_OPTS(),plugins:{...BASE_OPTS().plugins,tooltip:{...BASE_OPTS().plugins.tooltip,callbacks:{label:ctx=>`₡${Math.round(ctx.raw).toLocaleString('es-CR')}`}}}}
+  });
+
+  const dataFiltrada = mesesPlan.map(mi=>data[mi]);
+  const total   = dataFiltrada.reduce((a,b)=>a+b,0);
+  const nonZ    = dataFiltrada.filter(v=>v>0);
+  const avg     = nonZ.length ? total/nonZ.length : 0;
+  const maxM    = Math.max(...dataFiltrada,0);
+  const perHead = F.length ? total/F.length : 0;
+
+  document.getElementById('planStats').innerHTML=[
+    {l:'Total del Período',v:'₡'+fmtN(total),c:'var(--teal)'},
+    {l:'Promedio Mensual',v:'₡'+fmtN(avg),c:'var(--cyan)'},
+    {l:'Mes Máximo',v:'₡'+fmtN(maxM),c:'var(--green)'},
+    {l:'Por Colaborador',v:'₡'+fmtN(perHead),c:'var(--amber)'},
+  ].map(s=>`<div class="pstat"><div class="pstat-l">${s.l}</div><div class="pstat-v" style="color:${s.c}">${s.v}</div></div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// INTERANUAL — una línea por año desde RAW consolidado
+// ══════════════════════════════════════════════
+function renderInteranual(){
+  const datasets = YEARS.map(y => ({
+    label: String(y),
+    data:  MO.map((_,mi) => headcountMesAnio(RAW, y, mi)),
+    borderColor: YCOL[y], bg:'transparent', fill:false,
+    bw: y===2026?2.5:1.5, pr: y===2026?3:2
+  }));
+  CHARTS.ianual = mkLine('cInteranual', MOL, datasets);
+}
+
+// ══════════════════════════════════════════════
+// FLUJO ingresos vs salidas
+// ══════════════════════════════════════════════
+function renderFlujo(){
+  const F=FILTERED;
+  const ing=MO.map((_,mi)=>F.filter(r=>r.ingresoDate&&r.ingresoDate.m===mi).length);
+  const sal=MO.map((_,mi)=>F.filter(r=>r.salidaDate&&r.salidaDate.m===mi).length);
+  const neto=ing.map((v,i)=>v-sal[i]);
+  const ctx=document.getElementById('cFlujo');
+  CHARTS.flujo=new Chart(ctx,{
+    type:'bar',
+    data:{labels:MOL,datasets:[
+      {type:'bar',label:'Ingresos',data:ing,backgroundColor:'#22d3a0aa',borderColor:'#22d3a0',borderWidth:1,borderRadius:4,stack:'s'},
+      {type:'bar',label:'Salidas',data:sal.map(v=>-v),backgroundColor:'#f87171aa',borderColor:'#f87171',borderWidth:1,borderRadius:4,stack:'s'},
+      {type:'line',label:'Neto',data:neto,borderColor:'#fbbf24',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.4}
+    ]},
+    options:{...BASE_OPTS(),plugins:{...BASE_OPTS().plugins,tooltip:{...BASE_OPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${Math.abs(ctx.raw)}`}}}}
+  });
+}
+
+// ══════════════════════════════════════════════
+// ALERTAS INTELIGENTES
+// ══════════════════════════════════════════════
+function renderAlertas(){
+  const F=FILTERED;
+  const activos=F.filter(r=>r.activo).length||1;
+  const salidas=F.filter(r=>!r.activo).length;
+  const rot=+(salidas/activos*100).toFixed(1);
+  const mujeres=F.filter(r=>r.genero==='F').length;
+  const pctF=Math.round(mujeres/(F.length||1)*100);
+  const sinDepto=F.filter(r=>!r.depto).length;
+  const sinSal=F.filter(r=>r.totalSalario===0&&r.activo).length;
+  const despidos=F.filter(r=>r.motivoSalida&&r.motivoSalida.toLowerCase().includes('despido')).length;
+
+  const items=[
+    rot>5?{i:'🔴',t:'ai-red',tit:`Rotación ${rot}% — supera el umbral del 5%`,d:`${salidas} salidas sobre ${activos} activos. Acción requerida.`}:null,
+    rot>3&&rot<=5?{i:'⚠',t:'ai-amber',tit:`Rotación ${rot}% — zona de precaución`,d:'Cerca del umbral del 5%. Monitorear de cerca.'}:null,
+    rot<=3&&salidas>0?{i:'✓',t:'ai-green',tit:`Rotación saludable: ${rot}%`,d:'Por debajo del umbral. Buen indicador de retención.'}:null,
+    pctF<40?{i:'♀',t:'ai-amber',tit:`Brecha de género: ${pctF}% mujeres`,d:'Por debajo de la meta corporativa del 45%.'}:null,
+    pctF>=45?{i:'♀',t:'ai-green',tit:`Meta de género alcanzada: ${pctF}% mujeres`,d:'Se cumple la meta corporativa del 45%.'}:null,
+    despidos>0?{i:'📋',t:'ai-amber',tit:`${despidos} despidos con responsabilidad patronal`,d:'Revisar causas para reducir exposición legal y costo.'}:null,
+    sinDepto>0?{i:'!',t:'ai-blue',tit:`${sinDepto} colaboradores sin departamento`,d:'Actualizar campo DEPTO en el Google Sheets.'}:null,
+    sinSal>0?{i:'₡',t:'ai-blue',tit:`${sinSal} colaboradores activos sin salario registrado`,d:'Verificar columnas de salario en el sheet.'}:null,
+    {i:'✓',t:'ai-green',tit:`${RAW.length.toLocaleString()} colaboradores únicos cargados`,d:`Datos de ${[...new Set(RAW.flatMap(r=>r._años||[]))].length} año(s) desde Google Sheets. Sin duplicados entre años.`},
+  ].filter(Boolean);
+
+  const alertasActivas=items.filter(a=>a.t==='ai-red'||a.t==='ai-amber').length;
+  document.getElementById('chipAlertas').textContent=alertasActivas+' activas';
+  document.getElementById('alertList').innerHTML=items.map(a=>`
+    <div class="alert-item">
+      <div class="ai ${a.t}">${a.i}</div>
+      <div><div class="alert-t">${a.tit}</div><div class="alert-d">${a.d}</div></div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// CHART FACTORIES
+// ══════════════════════════════════════════════
+function BASE_OPTS(){
+  return {
+    responsive:true,maintainAspectRatio:false,
+    plugins:{
+      legend:{display:false},
+      tooltip:{backgroundColor:'#1c2a3e',borderColor:'#2a3c5e',borderWidth:1,
+        titleColor:'#dde4f0',bodyColor:'#7e92b4',padding:9,cornerRadius:8,displayColors:false}
+    },
+    scales:{
+      x:{ticks:{color:'#4a5a78',font:{size:10}},grid:{color:'#161f30'},border:{color:'transparent'}},
+      y:{ticks:{color:'#4a5a78',font:{size:10}},grid:{color:'#161f30'},border:{color:'transparent'}}
+    },
+    animation:{duration:550,easing:'easeInOutQuart'}
+  };
+}
+
+function mkLine(id, labels, series){
+  const ctx=document.getElementById(id); if(!ctx) return null;
+  const datasets=series.map((s,i)=>({
+    label:s.label,data:s.data,
+    borderColor:s.borderColor,backgroundColor:s.bg||'transparent',
+    fill:s.fill!==undefined?s.fill:false,
+    tension:.4,borderWidth:s.bw||2,
+    borderDash:s.dash||[],
+    pointRadius:s.pr!==undefined?s.pr:3,
+    pointBackgroundColor:s.borderColor
+  }));
+  return CHARTS[id]=new Chart(ctx,{
+    type:'line',data:{labels,datasets},
+    options:{...BASE_OPTS(),scales:{
+      x:{ticks:{color:'#4a5a78',font:{size:10}},grid:{color:'#161f30'},border:{color:'transparent'}},
+      y:{beginAtZero:true,ticks:{color:'#4a5a78',font:{size:10}},grid:{color:'#161f30'},border:{color:'transparent'}}
+    }}
+  });
+}
+
+function mkBar(id, labels, data, colors, horizontal=false){
+  const ctx=document.getElementById(id); if(!ctx) return null;
+  const bgColors = Array.isArray(colors) && colors.length>1
+    ? labels.map((_,i)=>(colors[i%colors.length])+'cc')
+    : [(colors[0]||'#2dd4bf')+'cc'];
+  const borderColors = Array.isArray(colors) && colors.length>1
+    ? labels.map((_,i)=>colors[i%colors.length])
+    : [colors[0]||'#2dd4bf'];
+  const opts={...BASE_OPTS()};
+  if(horizontal) opts.indexAxis='y';
+  return CHARTS[id]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:bgColors,borderColor:borderColors,borderWidth:1,borderRadius:5,barPercentage:.7}]},
+    options:opts
+  });
+}
+
+function mkDonut(id, labels, data, colors=null){
+  const ctx=document.getElementById(id); if(!ctx) return null;
+  const bgc=colors||labels.map((_,i)=>PAL[i%PAL.length]);
+  return CHARTS[id]=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:bgc,borderColor:'#0f1624',borderWidth:2}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,cutout:'64%',
+      plugins:{
+        legend:{position:'bottom',labels:{color:'#7e92b4',font:{size:10},boxWidth:10,padding:10}},
+        tooltip:{backgroundColor:'#1c2a3e',borderColor:'#2a3c5e',borderWidth:1,
+          titleColor:'#dde4f0',bodyColor:'#7e92b4',padding:9,cornerRadius:8,
+          callbacks:{label:ctx=>{const t=ctx.dataset.data.reduce((a,b)=>a+b,0)||1;
+            return ` ${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw/t*100)}%)`;}}
+        }
+      },animation:{duration:550}
+    }
+  });
+}
+
+function empty(id){
+  const ctx=document.getElementById(id); if(!ctx) return;
+  const parent=ctx.parentElement;
+  parent.innerHTML='<div class="empty">Sin datos suficientes para este período</div>';
+}
+
+function countBy(rows,key){
+  const o={};
+  rows.forEach(r=>{const v=r[key]||'N/D'; if(v&&v!=='N/D'&&v!=='N/A'&&v!=='') o[v]=(o[v]||0)+1;});
+  return o;
+}
+
+// ══════════════════════════════════════════════
+// FADE IN
+// ══════════════════════════════════════════════
+function animFI(){
+  const io=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');io.unobserve(e.target);}});
+  },{threshold:.05});
+  document.querySelectorAll('.fi:not(.vis)').forEach(el=>io.observe(el));
+}
+
+// ══════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', ()=>{
+  initMesPicker();
+  // Año por defecto: 2026
+  document.getElementById('selYear').value = '2026';
+  document.querySelectorAll('#filtersBar .f-pill').forEach(p =>
+    p.classList.toggle('active', p.getAttribute('data-year')==='2026')
+  );
+  loadData();
+});
+</script>
+</body>
+</html>
