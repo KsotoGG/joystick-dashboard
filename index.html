@@ -516,15 +516,16 @@ async function fetchTab(year){
 function parseSheet(csv, year){
   const all = parseCSV(csv);
 
-  // Find header row: first row containing COLABORADOR or PAIS
-  let hi=0;
-  for(let i=0;i<Math.min(5,all.length);i++){
-    if(all[i].some(c=>c.toUpperCase().includes('COLABORADOR')||c.toUpperCase().includes('PAIS'))){
-      hi=i; break;
+  // Header is always row 0 (no blank row confirmed from real data)
+  // Fallback: scan first 3 rows for the one containing COLABORADOR
+  let hi = 0;
+  for(let i = 0; i < Math.min(3, all.length); i++){
+    if(all[i].some(c => c.toUpperCase().includes('COLABORADOR'))){
+      hi = i; break;
     }
   }
-  const headers = all[hi].map(h=>h.toLowerCase().trim());
-  const data    = all.slice(hi+1).filter(r=>r.some(c=>c&&c.trim()));
+  const headers = all[hi].map(h => h.toLowerCase().trim());
+  const data    = all.slice(hi + 1).filter(r => r.some(c => c && c.trim()));
 
   // Column finder
   const find=(...keys)=>{
@@ -559,55 +560,46 @@ function parseSheet(csv, year){
   };
 
   // ── DETECT SALARY COLUMNS ──
-  // Format can be:
-  //   - Date string: "2026-01-01", "2026-02-01" etc. (new format confirmed)
-  //   - Month-year: "ene-26", "feb-26" etc. (old format)
-  //   - Position fallback after last known column
-  const yy=String(year).slice(2);
-  const salMap={}; // month index (0-11) → column index
+  // Real format confirmed: ene-23, feb-23, mar-23, abr-23, may-23, jun-23,
+  //                        jul-23, ago-23, sept-23, oct-23, nov-23, dic-23
+  // Also handle date format: 2023-01-01 etc.
+  const yy = String(year).slice(2); // "22", "23" etc.
 
-  headers.forEach((h,idx)=>{
-    const hc=h.replace(/\s/g,'').toLowerCase();
+  // Exact month prefixes in order (0=Jan ... 11=Dec)
+  // Note: September is "sept" (with t), not "sep"
+  const MES_PREFIX = ['ene','feb','mar','abr','may','jun','jul','ago','sept','oct','nov','dic'];
 
-    // FORMAT 1: date string yyyy-mm-dd or yyyy-mm-01
-    // e.g. "2026-01-01" → month 0
-    const dateMatch=hc.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if(dateMatch){
-      const y=parseInt(dateMatch[1]);
-      const mo=parseInt(dateMatch[2])-1; // 0-indexed
-      if(y===year && mo>=0 && mo<12){
-        salMap[mo]=idx;
-        return;
-      }
-    }
+  const salMap = {}; // month 0-11 → column index
 
-    // FORMAT 2: month-yy (ene-26, feb-26, sept-26)
-    const MES=[
-      ['ene','enero'],['feb','febrero'],['mar','marzo'],['abr','abril'],
-      ['may','mayo'],['jun','junio'],['jul','julio'],['ago','agosto'],
-      ['sept','sep','septiembre'],['oct','octubre'],['nov','noviembre'],['dic','diciembre']
-    ];
-    MES.forEach((aliases,mi)=>{
-      if(salMap[mi]!==undefined) return;
-      for(const a of aliases){
-        if(hc===`${a}-${yy}`||hc===`${a}${yy}`||hc===`${a}-${year}`){
-          salMap[mi]=idx; break;
-        }
+  headers.forEach((h, idx) => {
+    const hc = h.replace(/\s/g,'').toLowerCase();
+
+    // FORMAT 1: ene-23, feb-23, sept-23, dic-23 (confirmed real format)
+    MES_PREFIX.forEach((prefix, mi) => {
+      if(hc === `${prefix}-${yy}` || hc === `${prefix}${yy}` || hc === `${prefix}-${year}`){
+        salMap[mi] = idx;
       }
     });
+
+    // FORMAT 2: date string yyyy-mm-dd (e.g. 2023-01-01)
+    const dm = hc.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(dm && parseInt(dm[1]) === year){
+      const mi = parseInt(dm[2]) - 1;
+      if(mi >= 0 && mi < 12) salMap[mi] = idx;
+    }
   });
 
-  // FORMAT 3: position fallback — if fewer than 6 months found, fill from after last known col
-  if(Object.keys(salMap).length<6){
-    const lastKnown=Math.max(0,...Object.values(ci).filter(v=>v>=0));
-    const salStart=lastKnown+1;
-    console.warn(`[${year}] Only ${Object.keys(salMap).length} salary cols by name. Using position ${salStart}+`);
-    for(let mi=0;mi<12;mi++){
-      if(salMap[mi]===undefined) salMap[mi]=salStart+mi;
+  // Fallback: if fewer than 6 months found, use fixed position after last known column
+  if(Object.keys(salMap).length < 6){
+    const lastKnown = Math.max(0, ...Object.values(ci).filter(v => v >= 0));
+    const salStart  = lastKnown + 1;
+    console.warn(`[${year}] Only ${Object.keys(salMap).length} salary cols found by name. Fallback to position ${salStart}`);
+    for(let mi = 0; mi < 12; mi++){
+      if(salMap[mi] === undefined) salMap[mi] = salStart + mi;
     }
   }
 
-  console.log(`[${year}] Headers[0-2]:`,headers.slice(0,3),'SalMap:',JSON.stringify(salMap));
+  console.log(`[${year}] Headers[19-21]:`, headers.slice(19,22), '| SalMap:', JSON.stringify(salMap));
 
   // Parse each data row
   const g=(row,i)=>i>=0?(row[i]||'').trim():'';
