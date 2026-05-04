@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -212,13 +213,18 @@ option{background:var(--bg3)}
         <option value="2022">2022</option>
       </select>
       <select class="btn" id="selMes" onchange="applyFilters()">
-        <option value="all">Todos los meses</option>
+        <option value="all">Mes: Todos</option>
         <option value="0">Enero</option><option value="1">Febrero</option>
         <option value="2">Marzo</option><option value="3">Abril</option>
         <option value="4">Mayo</option><option value="5">Junio</option>
         <option value="6">Julio</option><option value="7">Agosto</option>
         <option value="8">Septiembre</option><option value="9">Octubre</option>
         <option value="10">Noviembre</option><option value="11">Diciembre</option>
+      </select>
+      <select class="btn" id="selModo" onchange="applyFilters()">
+        <option value="especifico">📌 Mes específico</option>
+        <option value="acumulado">📈 Acumulado hasta ese mes</option>
+        <option value="todo">📅 Todo el año</option>
       </select>
       <button class="btn" onclick="window.print()">↓ Exportar</button>
       <button class="btn" onclick="resetFilters()">↺ Resetear</button>
@@ -234,6 +240,7 @@ option{background:var(--bg3)}
       <span class="chip cyan" id="chipAnios">—</span>
       <span class="chip green" id="chipActivos">—</span>
       <span class="chip amber" id="chipSalidas">—</span>
+      <span class="chip purple" id="chipPeriodo">—</span>
     </div>
   </div>
 
@@ -738,14 +745,49 @@ function setYearPill(val, el){
   applyFilters();
 }
 
+// ── Devuelve los índices de mes activos según el modo ──
+function getMesesActivos(){
+  const mes  = document.getElementById('selMes').value;
+  const modo = document.getElementById('selModo').value;
+
+  // Modo "todo el año" o sin mes seleccionado → todos
+  if(modo === 'todo' || mes === 'all') return null; // null = sin restricción de mes
+
+  const mi = parseInt(mes);
+
+  if(modo === 'especifico'){
+    // Solo ese mes
+    return [mi];
+  } else {
+    // Acumulado: desde enero (0) hasta el mes seleccionado
+    return Array.from({length: mi + 1}, (_, i) => i);
+  }
+}
+
+// ── Etiqueta descriptiva del período activo ──
+function getPeriodoLabel(){
+  const mes  = document.getElementById('selMes').value;
+  const modo = document.getElementById('selModo').value;
+  const year = document.getElementById('selYear').value;
+  const yrLabel = year === 'all' ? 'Todos los años' : year;
+  const MOL_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  if(mes === 'all' || modo === 'todo')
+    return `📅 Todo el año · ${yrLabel}`;
+  const mi = parseInt(mes);
+  if(modo === 'especifico')
+    return `📌 ${MOL_FULL[mi]} · ${yrLabel}`;
+  return `📈 Ene → ${MOL_FULL[mi]} · ${yrLabel}`;
+}
+
 function applyFilters(){
   if(!RAW.length) return;
   const year    = document.getElementById('selYear').value;
-  const mes     = document.getElementById('selMes').value;
   const depto   = document.getElementById('selDepto').value;
   const contrato= document.getElementById('selContrato').value;
   const gen     = document.getElementById('selGen').value;
   const prov    = document.getElementById('selProv').value;
+  const mesesActivos = getMesesActivos(); // null = todos, array = meses permitidos
 
   FILTERED = RAW.filter(r => {
     if(year!=='all' && String(r._year)!==year) return false;
@@ -753,12 +795,17 @@ function applyFilters(){
     if(contrato!=='all' && r.contrato!==contrato) return false;
     if(gen!=='all' && r.genero!==gen) return false;
     if(prov!=='all' && r.provincia!==prov) return false;
-    if(mes!=='all'){
-      const mi=parseInt(mes);
-      if(!r.salarios || r.salarios[mi]===0) return false;
+    // Filtro de mes: el colaborador debe tener salario en AL MENOS UNO de los meses activos
+    if(mesesActivos !== null){
+      const tieneSalario = mesesActivos.some(mi => r.salarios && r.salarios[mi] > 0);
+      if(!tieneSalario) return false;
     }
     return true;
   });
+
+  // Actualizar chip de período
+  const chipP = document.getElementById('chipPeriodo');
+  if(chipP) chipP.textContent = getPeriodoLabel();
 
   destroyCharts();
   renderAll();
@@ -767,6 +814,7 @@ function applyFilters(){
 function resetFilters(){
   document.getElementById('selYear').value='all';
   document.getElementById('selMes').value='all';
+  document.getElementById('selModo').value='todo';
   document.getElementById('selDepto').value='all';
   document.getElementById('selContrato').value='all';
   document.getElementById('selGen').value='all';
@@ -815,14 +863,38 @@ function renderAll(){
 function renderKPIs(){
   const F = FILTERED;
   const yr = document.getElementById('selYear').value;
+  const mesesActivos = getMesesActivos(); // null=todos, array=meses filtrados
 
-  const activos   = F.filter(r=>r.activo).length;
-  const salidas   = F.filter(r=>!r.activo && r.salidaDate).length;
+  // Headcount activo: con salario en algún mes del período
+  const activos = F.filter(r => {
+    if(!r.activo) return false;
+    if(mesesActivos === null) return true;
+    return mesesActivos.some(mi => r.salarios[mi] > 0);
+  }).length;
+
+  // Salidas del período: fecha salida dentro de los meses activos
+  const salidas = F.filter(r => {
+    if(!r.salidaDate) return false;
+    if(mesesActivos === null) return true;
+    return mesesActivos.includes(r.salidaDate.m);
+  }).length;
+
+  // Ingresos del período
+  const ingresos = F.filter(r => {
+    if(!r.ingresoDate) return false;
+    if(mesesActivos === null) return true;
+    return mesesActivos.includes(r.ingresoDate.m);
+  }).length;
+
   const total     = F.length || 1;
   const mujeres   = F.filter(r=>r.genero==='F').length;
   const pctF      = Math.round(mujeres/total*100);
   const rotTasa   = activos ? +(salidas/activos*100).toFixed(1) : 0;
-  const planTotal = F.reduce((s,r)=>s+r.totalSalario,0);
+
+  // Planilla del período: suma solo meses activos
+  const mesesParaPlan = mesesActivos !== null ? mesesActivos : MO.map((_,i)=>i);
+  const planTotal = F.reduce((s,r) => s + mesesParaPlan.reduce((a,mi) => a+(r.salarios[mi]||0), 0), 0);
+  const planMes   = mesesParaPlan.length ? planTotal / mesesParaPlan.length : 0;
 
   // Comparación año anterior
   const prevYr = yr==='all' ? null : String(+yr-1);
@@ -832,19 +904,18 @@ function renderKPIs(){
   const prevSal = prev.filter(r=>!r.activo).length;
   const chgSal = prevSal ? ((salidas-prevSal)/prevSal*100).toFixed(1) : null;
 
-  // Planilla mensual promedio
-  const mesesConData = MO.map((_,mi)=>F.reduce((s,r)=>s+(r.salarios[mi]||0),0)).filter(v=>v>0);
-  const planMes = mesesConData.length ? mesesConData.reduce((a,b)=>a+b,0)/mesesConData.length : 0;
+  // Label del período para contexto
+  const periodoLabel = getPeriodoLabel();
 
   const kpis = [
-    {lbl:'Colaboradores Activos', val:activos.toLocaleString(),
+    {lbl:'Headcount Activo', val:activos.toLocaleString(),
      badge:chgAct?(+chgAct>=0?'↑':'↓')+Math.abs(chgAct)+'%':null,
      bt:chgAct?(+chgAct>=0?'up':'dn'):'nt',
-     ctx:prevAct?`vs ${prevAct} año anterior`:yr==='all'?'Todos los años':'Sin año previo',
+     ctx:prevAct?`vs ${prevAct} año anterior`:periodoLabel,
      color:'t-teal', spark:true},
-    {lbl:'Total en Período', val:total.toLocaleString(),
+    {lbl:'Ingresos del Período', val:ingresos.toLocaleString(),
      badge:null, bt:'nt',
-     ctx:`${[...new Set(F.map(r=>r._year))].sort().join(', ')}`,
+     ctx:periodoLabel,
      color:'t-cyan', spark:false},
     {lbl:'Salidas del Período', val:salidas,
      badge:chgSal?(+chgSal>=0?'↑':'↓')+Math.abs(chgSal)+'%':null,
@@ -855,9 +926,9 @@ function renderKPIs(){
      badge:`${mujeres} mujeres`,
      bt:'nt', ctx:'Proporción femenina en la plantilla',
      color:'t-purple', spark:false},
-    {lbl:'Planilla Mensual Prom.', val:'₡'+fmtN(planMes),
+    {lbl:'Planilla del Período', val:'₡'+fmtN(planTotal),
      badge:null, bt:'nt',
-     ctx:'Promedio mensual del período',
+     ctx:`Prom. mensual: ₡${fmtN(planMes)}`,
      color:'t-amber', spark:false},
     {lbl:'Tasa de Rotación', val:rotTasa+'%',
      badge:rotTasa>5?'⚠ Alta':rotTasa>3?'Precaución':'✓ OK',
@@ -882,9 +953,13 @@ function renderKPIs(){
     if(!k.spark) return;
     const ctx = document.getElementById('spk'+i); if(!ctx) return;
     const data = MO.map((_,mi)=>F.filter(r=>r.salarios[mi]>0).length);
+    // Marcar meses activos con color diferente
+    const borderColors = MO.map((_,mi)=>
+      mesesActivos===null || mesesActivos.includes(mi) ? '#2dd4bf' : '#2dd4bf44'
+    );
     CHARTS['spk'+i] = new Chart(ctx,{
       type:'line',
-      data:{labels:MOL,datasets:[{data,borderColor:'#2dd4bf',backgroundColor:'#2dd4bf18',fill:true,tension:.4,borderWidth:1.5,pointRadius:0}]},
+      data:{labels:MOL,datasets:[{data,borderColor:'#2dd4bf',backgroundColor:'#2dd4bf18',fill:true,tension:.4,borderWidth:1.5,pointRadius:3,pointBackgroundColor:borderColors}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}},animation:{duration:600}}
     });
   });
@@ -902,11 +977,17 @@ function fmtN(n){
 // ══════════════════════════════════════════════
 function renderTend(){
   const F=FILTERED;
-  const yr=document.getElementById('selYear').value;
+  const mesesActivos = getMesesActivos();
   const hc  = MO.map((_,mi)=>F.filter(r=>r.salarios[mi]>0).length);
   const ing = MO.map((_,mi)=>F.filter(r=>r.ingresoDate&&r.ingresoDate.m===mi).length);
   const sal = MO.map((_,mi)=>F.filter(r=>r.salidaDate&&r.salidaDate.m===mi).length);
-  document.getElementById('badgeTend').textContent = yr==='all'?'Todos':'Año '+yr;
+  document.getElementById('badgeTend').textContent = getPeriodoLabel();
+
+  // Atenuar puntos fuera del período
+  const ptColors = MOL.map((_,mi)=>
+    mesesActivos===null||mesesActivos.includes(mi) ? '#2dd4bf' : '#2dd4bf33'
+  );
+
   CHARTS.tend = mkLine('cTend', MOL, [
     {label:'Headcount',data:hc,borderColor:'#2dd4bf',bg:'#2dd4bf18',fill:true},
     {label:'Ingresos', data:ing,borderColor:'#22d3a0',bg:'transparent',fill:false,dash:[5,3]},
@@ -1049,22 +1130,31 @@ function renderPuestos(){
 }
 
 // ══════════════════════════════════════════════
-// ROTACIÓN
+// ROTACIÓN — respeta meses activos
 // ══════════════════════════════════════════════
 function renderRotacion(){
   const F=FILTERED;
+  const mesesActivos = getMesesActivos();
   const hc  = MO.map((_,mi)=>F.filter(r=>r.salarios[mi]>0).length);
   const sal = MO.map((_,mi)=>F.filter(r=>r.salidaDate&&r.salidaDate.m===mi).length);
   const rates = hc.map((h,i)=>h>0?+(sal[i]/h*100).toFixed(2):0);
+
+  // Opacidad reducida en meses fuera del período seleccionado
+  const bgColors = rates.map((r,i)=>{
+    const inPeriod = mesesActivos===null || mesesActivos.includes(i);
+    const base = r>5?'#f87171':r>3?'#fbbf24':'#22d3a0';
+    return base+(inPeriod?'cc':'33');
+  });
+  const bdColors = rates.map((r,i)=>{
+    const inPeriod = mesesActivos===null || mesesActivos.includes(i);
+    const base = r>5?'#f87171':r>3?'#fbbf24':'#22d3a0';
+    return inPeriod?base:base+'55';
+  });
+
   const ctx=document.getElementById('cRot');
   CHARTS.rot=new Chart(ctx,{
     type:'bar',
-    data:{labels:MOL,datasets:[{
-      data:rates,
-      backgroundColor:rates.map(r=>r>5?'#f87171bb':r>3?'#fbbf24bb':'#22d3a0bb'),
-      borderColor:rates.map(r=>r>5?'#f87171':r>3?'#fbbf24':'#22d3a0'),
-      borderWidth:1,borderRadius:4
-    }]},
+    data:{labels:MOL,datasets:[{data:rates,backgroundColor:bgColors,borderColor:bdColors,borderWidth:1,borderRadius:4}]},
     options:{...BASE_OPTS(),plugins:{...BASE_OPTS().plugins,tooltip:{...BASE_OPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.raw}% rotación`}}}}
   });
 }
@@ -1113,25 +1203,39 @@ function renderHeatmap(){
 }
 
 // ══════════════════════════════════════════════
-// PLANILLA — suma real de columnas de salario
+// PLANILLA — suma real según período seleccionado
 // ══════════════════════════════════════════════
 function renderPlanilla(){
   const F=FILTERED;
+  const mesesActivos = getMesesActivos();
   const data=MO.map((_,mi)=>F.reduce((s,r)=>s+(r.salarios[mi]||0),0));
+
+  // Colores: meses del período en teal, el resto atenuado
+  const bgColors = data.map((_,mi)=>
+    mesesActivos===null||mesesActivos.includes(mi) ? '#2dd4bf55' : '#2dd4bf18'
+  );
+  const bdColors = data.map((_,mi)=>
+    mesesActivos===null||mesesActivos.includes(mi) ? '#2dd4bf' : '#2dd4bf44'
+  );
+
   const ctx=document.getElementById('cPlanilla');
   CHARTS.plan=new Chart(ctx,{
     type:'bar',
-    data:{labels:MOL,datasets:[{data,backgroundColor:'#2dd4bf44',borderColor:'#2dd4bf',borderWidth:1.5,borderRadius:4}]},
+    data:{labels:MOL,datasets:[{data,backgroundColor:bgColors,borderColor:bdColors,borderWidth:1.5,borderRadius:4}]},
     options:{...BASE_OPTS(),plugins:{...BASE_OPTS().plugins,tooltip:{...BASE_OPTS().plugins.tooltip,callbacks:{label:ctx=>`₡${Math.round(ctx.raw).toLocaleString('es-CR')}`}}}}
   });
 
-  const nonZ=data.filter(v=>v>0);
-  const total=data.reduce((a,b)=>a+b,0);
-  const avg=nonZ.length?total/nonZ.length:0;
-  const maxM=Math.max(...data,0);
-  const perHead=F.length?total/F.length:0;
+  // Stats solo del período activo
+  const mesesPlan = mesesActivos !== null ? mesesActivos : MO.map((_,i)=>i);
+  const dataFiltrada = mesesPlan.map(mi=>data[mi]);
+  const total   = dataFiltrada.reduce((a,b)=>a+b,0);
+  const nonZ    = dataFiltrada.filter(v=>v>0);
+  const avg     = nonZ.length?total/nonZ.length:0;
+  const maxM    = Math.max(...dataFiltrada,0);
+  const perHead = F.length?total/F.length:0;
+
   document.getElementById('planStats').innerHTML=[
-    {l:'Total Acumulado',v:'₡'+fmtN(total),c:'var(--teal)'},
+    {l:'Total del Período',v:'₡'+fmtN(total),c:'var(--teal)'},
     {l:'Promedio Mensual',v:'₡'+fmtN(avg),c:'var(--cyan)'},
     {l:'Mes Máximo',v:'₡'+fmtN(maxM),c:'var(--green)'},
     {l:'Por Colaborador',v:'₡'+fmtN(perHead),c:'var(--amber)'},
