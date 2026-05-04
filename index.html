@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -660,7 +661,6 @@ async function fetchTab(year){
 // CARGAR TODOS LOS AÑOS Y CONSOLIDAR
 // ══════════════════════════════════════════════
 async function loadData(){
-  // rawPorAnio: datos crudos por año antes de consolidar
   const rawPorAnio = {};
   let loaded = 0;
   ldBar(5); ldMsg('Conectando con Google Sheets...');
@@ -670,21 +670,122 @@ async function loadData(){
     ldMsg(`Cargando pestaña ${year}...`);
     try{
       const csv = await fetchTab(year);
-      const rows = parseCSVRows(csv);
-      const headerRow = rows[0].some(c=>c.toUpperCase().includes('PAIS')||c.toUpperCase().includes('COLABORADOR')) ? 0 : 1;
-      const dataRows = rows.slice(headerRow+1);
-      const mapped = dataRows
-        .map(r => mapRow(r, year))
-        .filter(r => r.colaborador && r.colaborador.length > 2);
-      rawPorAnio[year] = mapped;
+      const allRows = parseCSVRows(csv);
+
+      // Encontrar fila de headers
+      let headerIdx = 0;
+      for(let i=0;i<Math.min(5,allRows.length);i++){
+        if(allRows[i].some(c=>c.toUpperCase().includes('COLABORADOR')||c.toUpperCase().includes('PAIS'))){
+          headerIdx=i; break;
+        }
+      }
+      const headers = allRows[headerIdx].map(h=>h.toLowerCase().trim().replace(/\s+/g,' '));
+      const dataRows = allRows.slice(headerIdx+1).filter(r=>r.some(c=>c&&c.trim()));
+
+      // Encontrar índice por nombre de columna
+      const find=(...keys)=>{
+        for(const k of keys){
+          const kn=k.toLowerCase().trim();
+          const idx=headers.findIndex(h=>h===kn||h.includes(kn)||kn.includes(h));
+          if(idx>=0) return idx;
+        }
+        return -1;
+      };
+
+      const ci={
+        PAIS:find('pais','país'),
+        CONTRATO:find('contrato'),
+        EMPRESA:find('empresa'),
+        COLAB:find('colaborador','nombre'),
+        DEPTO:find('depto','departamento','area','área'),
+        PUESTO:find('puesto','cargo','rol'),
+        INGRESO:find('ingreso','fecha ingreso'),
+        NACIO:find('nacio','nacimiento'),
+        GEN:find('gen','genero','género','sexo'),
+        ESTADO:find('estado','estado civil'),
+        HIJOS:find('hijos'),
+        GRADO:find('grado academico','grado académico','grado'),
+        INGLES:find('inglés','ingles','inglés'),
+        PROVINCIA:find('provincia'),
+        CANTON:find('canton','cantón'),
+        FSALIDA:find('fecha salida','fecha_salida'),
+        MOTIVO:find('motivo salida','motivo_salida','motivo'),
+        RAZON:find('razon salida','razón salida','razon'),
+        DESTINO:find('destino colaborador','destino'),
+      };
+
+      // Detectar columnas de salario por nombre del mes y año
+      const yy=String(year).slice(2);
+      const MES_NOMBRES=[
+        ['ene','enero'],['feb','febrero'],['mar','marzo'],['abr','abril'],
+        ['may','mayo'],['jun','junio'],['jul','julio'],['ago','agosto'],
+        ['sept','sep','septiembre'],['oct','octubre'],['nov','noviembre'],['dic','diciembre']
+      ];
+      const salIdxMap={};
+      headers.forEach((h,idx)=>{
+        const hc=h.replace(/\s/g,'');
+        MES_NOMBRES.forEach((aliases,mi)=>{
+          aliases.forEach(alias=>{
+            if(hc===`${alias}-${yy}`||hc===`${alias}${yy}`||hc===`${alias}-${year}`){
+              salIdxMap[mi]=idx;
+            }
+          });
+        });
+      });
+
+      console.log(`[${year}] ColIdx COLAB:${ci.COLAB} FSALIDA:${ci.FSALIDA} SalMap:`,JSON.stringify(salIdxMap));
+
+      const mapped=dataRows.map(row=>{
+        const g=(i)=>i>=0?(row[i]||'').trim():'';
+        const gv=(i)=>g(i).replace(/^N\/A$/i,'').trim();
+
+        const colaborador=gv(ci.COLAB);
+        if(!colaborador||colaborador.length<2) return null;
+
+        // Salarios por mes usando índices detectados
+        const salarios={};
+        for(let mi=0;mi<12;mi++){
+          salarios[mi]=salIdxMap[mi]!==undefined ? parseSal(row[salIdxMap[mi]]) : 0;
+        }
+
+        const fechaSalStr=gv(ci.FSALIDA);
+        const ingresoDate=parseDate(gv(ci.INGRESO));
+        const salidaDate=fechaSalStr?parseDate(fechaSalStr):null;
+
+        const nacDate=parseDate(gv(ci.NACIO));
+        let edad=0;
+        if(nacDate){const h=new Date();edad=h.getFullYear()-nacDate.y-(h.getMonth()<nacDate.m?1:0);}
+
+        const gr=gv(ci.GEN).toUpperCase();
+        const genero=gr==='F'||gr.startsWith('FEM')||gr==='MUJER'?'F':
+                     gr==='M'||gr.startsWith('MAS')||gr==='HOMBRE'?'M':gv(ci.GEN);
+
+        return{
+          _year:year,colaborador,
+          empresa:gv(ci.EMPRESA),pais:gv(ci.PAIS),contrato:gv(ci.CONTRATO),
+          depto:gv(ci.DEPTO),puesto:gv(ci.PUESTO),genero,
+          estado:gv(ci.ESTADO),hijos:parseInt(gv(ci.HIJOS))||0,
+          grado:gv(ci.GRADO),ingles:gv(ci.INGLES),
+          provincia:gv(ci.PROVINCIA),canton:gv(ci.CANTON),
+          nacDate,edad,ingresoDate,salidaDate,
+          motivoSalida:gv(ci.MOTIVO),razonSalida:gv(ci.RAZON),destino:gv(ci.DESTINO),
+          salarios,
+          totalSalario:Object.values(salarios).reduce((a,b)=>a+b,0),
+          activo:!salidaDate,
+          antiguedadMeses:0,
+        };
+      }).filter(Boolean);
+
+      rawPorAnio[year]=mapped;
+      console.log(`[${year}] ${mapped.length} colaboradores cargados`);
       ldTab(year,'done');
     }catch(e){
-      console.warn('Error pestaña',year,e);
+      console.error('Error pestaña',year,e);
       ldTab(year,'fail');
-      rawPorAnio[year] = [];
+      rawPorAnio[year]=[];
     }
     loaded++;
-    ldBar(10 + loaded/YEARS.length*75);
+    ldBar(10+loaded/YEARS.length*75);
   }
 
   ldBar(88); ldMsg('Consolidando colaboradores...');
