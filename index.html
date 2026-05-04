@@ -215,7 +215,7 @@ option{background:var(--bg3)}
       </div>
     </div>
     <div class="hdr-actions">
-      <select class="btn" id="selYear" onchange="applyFilters()">
+      <select class="btn" id="selYear" onchange="onYearDropdownChange()">
         <option value="all">Todos los años</option>
         <option value="2026" selected>2026</option>
         <option value="2025">2025</option>
@@ -268,12 +268,12 @@ option{background:var(--bg3)}
   <!-- FILTERS -->
   <div class="filters" id="filtersBar">
     <span class="f-label">Año</span>
-    <button class="f-pill active" onclick="setYearPill('all',this)">Todos</button>
-    <button class="f-pill" onclick="setYearPill('2026',this)">2026</button>
-    <button class="f-pill" onclick="setYearPill('2025',this)">2025</button>
-    <button class="f-pill" onclick="setYearPill('2024',this)">2024</button>
-    <button class="f-pill" onclick="setYearPill('2023',this)">2023</button>
-    <button class="f-pill" onclick="setYearPill('2022',this)">2022</button>
+    <button class="f-pill active" data-year="all" onclick="setYearPill('all',this)">Todos</button>
+    <button class="f-pill" data-year="2026" onclick="setYearPill('2026',this)">2026</button>
+    <button class="f-pill" data-year="2025" onclick="setYearPill('2025',this)">2025</button>
+    <button class="f-pill" data-year="2024" onclick="setYearPill('2024',this)">2024</button>
+    <button class="f-pill" data-year="2023" onclick="setYearPill('2023',this)">2023</button>
+    <button class="f-pill" data-year="2022" onclick="setYearPill('2022',this)">2022</button>
     <span style="flex:1"></span>
     <select class="f-select" id="selDepto" onchange="applyFilters()"><option value="all">Depto: Todos</option></select>
     <select class="f-select" id="selContrato" onchange="applyFilters()"><option value="all">Contrato: Todos</option></select>
@@ -848,9 +848,21 @@ function populateFilters(){
 // FILTERS
 // ══════════════════════════════════════════════
 function setYearPill(val, el){
+  // Sincronizar pill activo
   document.querySelectorAll('#filtersBar .f-pill').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
+  // Sincronizar dropdown del header
   document.getElementById('selYear').value = val;
+  applyFilters();
+}
+
+// Cuando cambia el dropdown del header, sincronizar pills
+function onYearDropdownChange(){
+  const val = document.getElementById('selYear').value;
+  document.querySelectorAll('#filtersBar .f-pill').forEach(p => {
+    const pillVal = p.getAttribute('data-year') || p.textContent.trim();
+    p.classList.toggle('active', pillVal === val || (val === 'all' && pillVal === 'Todos'));
+  });
   applyFilters();
 }
 
@@ -1035,7 +1047,10 @@ function resetFilters(){
   document.getElementById('selGen').value='all';
   document.getElementById('selPais').value='all';
   document.getElementById('selProv').value='all';
-  document.querySelectorAll('#filtersBar .f-pill').forEach((p,i)=>p.classList.toggle('active',i===0));
+  // Sincronizar pills de año
+  document.querySelectorAll('#filtersBar .f-pill').forEach(p =>
+    p.classList.toggle('active', p.getAttribute('data-year')==='all')
+  );
   // Reset mes picker
   modoActual='todo';
   selectedMeses=null;
@@ -1720,6 +1735,11 @@ function animFI(){
 // ══════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', ()=>{
   initMesPicker();
+  // Año por defecto: 2026
+  document.getElementById('selYear').value = '2026';
+  document.querySelectorAll('#filtersBar .f-pill').forEach(p =>
+    p.classList.toggle('active', p.getAttribute('data-year')==='2026')
+  );
   loadData();
 });
 </script>
