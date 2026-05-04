@@ -690,90 +690,112 @@ async function loadData(){
 
   ldBar(88); ldMsg('Consolidando colaboradores...');
 
-  // ── CONSOLIDACIÓN ──
-  // Clave única: nombre + empresa (normalizado)
-  // Una persona que aparece en múltiples años = 1 solo registro
-  // Sus salarios se agrupan por año → salariosPorAnio[year][mes]
-  // Su fecha de ingreso = la más antigua encontrada
-  // Su fecha de salida = la del año donde aparece con fecha salida
-  // Activo = si en el año más reciente no tiene fecha de salida
+  // ── CONSOLIDACIÓN POR NOMBRE DE COLABORADOR ──
+  // Clave única = nombre del colaborador (normalizado)
+  // Cada persona aparece UNA sola vez en RAW
+  // Sus salarios se guardan por año: salariosPorAnio[año][0..11]
+  // Lógica: si tiene salario > 0 en un mes → estaba activo ese mes
+  //         si tiene 0 o vacío → no estaba activo ese mes
+  //         si tiene fecha de salida → salió en esa fecha
 
-  const mapaColaboradores = {};
+  const mapa = {};
 
   YEARS.forEach(year => {
     (rawPorAnio[year]||[]).forEach(r => {
-      const clave = (r.colaborador + '|' + r.empresa).toLowerCase().trim();
+      // Clave: solo nombre del colaborador normalizado
+      const clave = r.colaborador.toLowerCase().trim().replace(/\s+/g,' ');
+      if(!clave || clave.length < 2) return;
 
-      if(!mapaColaboradores[clave]){
-        // Primera vez que vemos esta persona
-        mapaColaboradores[clave] = {
-          ...r,
+      if(!mapa[clave]){
+        mapa[clave] = {
+          colaborador:  r.colaborador,
+          empresa:      r.empresa,
+          pais:         r.pais,
+          contrato:     r.contrato,
+          depto:        r.depto,
+          puesto:       r.puesto,
+          genero:       r.genero,
+          estado:       r.estado,
+          hijos:        r.hijos,
+          grado:        r.grado,
+          ingles:       r.ingles,
+          provincia:    r.provincia,
+          canton:       r.canton,
+          nacDate:      r.nacDate,
+          edad:         r.edad,
+          ingresoDate:  r.ingresoDate,
+          salidaDate:   null,
+          motivoSalida: '',
+          razonSalida:  '',
+          destino:      '',
+          activo:       true,
+          antiguedadMeses: 0,
+          _años:        [],
           salariosPorAnio: {},
-          _años: [],
         };
       }
 
-      const col = mapaColaboradores[clave];
+      const col = mapa[clave];
 
-      // Registrar el año
+      // Agregar año a la lista
       if(!col._años.includes(year)) col._años.push(year);
 
-      // Guardar salarios de este año
-      col.salariosPorAnio[year] = {...r.salarios};
+      // Guardar salarios de este año tal como vienen del sheet
+      // 0 = no activo ese mes, >0 = activo ese mes
+      col.salariosPorAnio[year] = {};
+      for(let mi=0; mi<12; mi++){
+        col.salariosPorAnio[year][mi] = r.salarios[mi] || 0;
+      }
 
-      // Fecha de ingreso: quedarse con la más antigua
+      // Fecha de ingreso: la más antigua
       if(r.ingresoDate){
-        if(!col.ingresoDate ||
-           r.ingresoDate.y < col.ingresoDate.y ||
-           (r.ingresoDate.y === col.ingresoDate.y && r.ingresoDate.m < col.ingresoDate.m)){
+        if(!col.ingresoDate
+          || r.ingresoDate.y < col.ingresoDate.y
+          || (r.ingresoDate.y===col.ingresoDate.y && r.ingresoDate.m < col.ingresoDate.m)){
           col.ingresoDate = r.ingresoDate;
         }
       }
 
-      // Fecha de salida: solo si existe en este año
+      // Fecha de salida: si existe en CUALQUIER año
       if(r.salidaDate){
-        col.salidaDate = r.salidaDate;
-        col.motivoSalida = r.motivoSalida;
-        col.razonSalida  = r.razonSalida;
-        col.destino      = r.destino;
+        col.salidaDate   = r.salidaDate;
+        col.motivoSalida = r.motivoSalida || col.motivoSalida;
+        col.razonSalida  = r.razonSalida  || col.razonSalida;
+        col.destino      = r.destino      || col.destino;
       }
 
-      // Datos más recientes del colaborador (del año más alto)
-      if(year >= Math.max(...col._años)){
-        col.depto    = r.depto    || col.depto;
-        col.puesto   = r.puesto   || col.puesto;
-        col.contrato = r.contrato || col.contrato;
-        col.pais     = r.pais     || col.pais;
-        col.provincia= r.provincia|| col.provincia;
-        col.canton   = r.canton   || col.canton;
-        col.genero   = r.genero   || col.genero;
-        col.estado   = r.estado   || col.estado;
-        col.grado    = r.grado    || col.grado;
-        col.ingles   = r.ingles   || col.ingles;
-        col.hijos    = r.hijos    !== undefined ? r.hijos : col.hijos;
-        col.edad     = r.edad     || col.edad;
+      // Actualizar datos demográficos con el año más reciente
+      if(year === Math.max(...col._años)){
+        col.empresa   = r.empresa   || col.empresa;
+        col.pais      = r.pais      || col.pais;
+        col.contrato  = r.contrato  || col.contrato;
+        col.depto     = r.depto     || col.depto;
+        col.puesto    = r.puesto    || col.puesto;
+        col.provincia = r.provincia || col.provincia;
+        col.canton    = r.canton    || col.canton;
+        col.estado    = r.estado    || col.estado;
+        col.grado     = r.grado     || col.grado;
+        col.ingles    = r.ingles    || col.ingles;
+        if(r.hijos !== undefined) col.hijos = r.hijos;
+        if(r.edad)   col.edad  = r.edad;
+        if(r.genero) col.genero = r.genero;
       }
-
-      // Activo: sin fecha de salida en el año más reciente que aparece
-      const maxAnio = Math.max(...col._años);
-      const dataMaxAnio = (rawPorAnio[maxAnio]||[]).find(x=>
-        (x.colaborador+'|'+x.empresa).toLowerCase().trim() === clave
-      );
-      col.activo = dataMaxAnio ? !dataMaxAnio.salidaDate : !col.salidaDate;
     });
   });
 
-  // Convertir mapa a array y recalcular antigüedad
-  RAW = Object.values(mapaColaboradores).map(col => {
-    // Antigüedad desde fecha ingreso hasta hoy (o salida)
+  // Finalizar: calcular activo y antigüedad
+  RAW = Object.values(mapa).map(col => {
+    col._años.sort((a,b)=>a-b);
+
+    // Activo = sin fecha de salida
+    col.activo = !col.salidaDate;
+
+    // Antigüedad en meses desde ingreso
     if(col.ingresoDate){
       const ref = col.salidaDate || {y:new Date().getFullYear(), m:new Date().getMonth()};
-      col.antiguedadMeses = Math.max(0, (ref.y - col.ingresoDate.y)*12 + (ref.m - col.ingresoDate.m));
+      col.antiguedadMeses = Math.max(0, (ref.y-col.ingresoDate.y)*12 + (ref.m-col.ingresoDate.m));
     }
-    // _años del colaborador ordenados
-    col._años.sort((a,b)=>a-b);
-    col._primerAnio = col._años[0];
-    col._ultimoAnio = col._años[col._años.length-1];
+
     return col;
   });
 
@@ -1013,22 +1035,32 @@ function applyFilters(){
   const mesesActivos = getMesesActivos();
 
   FILTERED = RAW.filter(r => {
-    // Filtro de año: la persona debe haber estado activa en ese año
-    if(year!=='all' && !r._años.includes(parseInt(year))) return false;
-    if(depto!=='all' && r.depto!==depto) return false;
-    if(contrato!=='all' && r.contrato!==contrato) return false;
-    if(gen!=='all' && r.genero!==gen) return false;
-    if(pais!=='all' && r.pais!==pais) return false;
-    if(prov!=='all' && r.provincia!==prov) return false;
-    // Filtro de mes: debe tener salario en al menos uno de los meses activos
-    // en el año filtrado (o en cualquier año si no hay filtro de año)
-    if(mesesActivos !== null){
-      const aniosFiltrados = year==='all' ? r._años : [parseInt(year)];
-      const tieneSalario = aniosFiltrados.some(y =>
-        r.salariosPorAnio[y] && mesesActivos.some(mi => (r.salariosPorAnio[y][mi]||0) > 0)
-      );
-      if(!tieneSalario) return false;
+    // Filtro de año: incluir persona solo si tuvo salario > 0 en algún mes de ese año
+    if(year !== 'all'){
+      const y = parseInt(year);
+      const sal = r.salariosPorAnio && r.salariosPorAnio[y];
+      if(!sal) return false;
+      // Debe tener AL MENOS un mes con salario en ese año
+      const tieneAlgoEseAnio = Object.values(sal).some(v => v > 0);
+      if(!tieneAlgoEseAnio) return false;
     }
+
+    // Filtros de mes: si hay meses seleccionados, debe tener salario en esos meses
+    if(mesesActivos !== null && year !== 'all'){
+      const y = parseInt(year);
+      const sal = r.salariosPorAnio && r.salariosPorAnio[y];
+      if(!sal) return false;
+      const tieneMes = mesesActivos.some(mi => (sal[mi]||0) > 0);
+      if(!tieneMes) return false;
+    }
+
+    // Filtros demográficos
+    if(depto   !== 'all' && r.depto     !== depto)   return false;
+    if(contrato!== 'all' && r.contrato  !== contrato) return false;
+    if(gen     !== 'all' && r.genero    !== gen)      return false;
+    if(pais    !== 'all' && r.pais      !== pais)     return false;
+    if(prov    !== 'all' && r.provincia !== prov)     return false;
+
     return true;
   });
 
