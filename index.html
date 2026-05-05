@@ -7,7 +7,6 @@
 <title>Joystick · People Analytics</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 :root{
   --bg:#090e1a;--bg2:#0f1624;--bg3:#161f30;--bg4:#1c2a3e;--bg5:#243048;
@@ -1543,20 +1542,7 @@ function mkBar(id,labels,data,colors,horizontal=false){
   const opts={...BOPTS()};
   if(horizontal) opts.indexAxis='y';
 
-  // Data labels: show value at end of each bar
-  opts.plugins = {
-    ...opts.plugins,
-    datalabels: {
-      display: true,
-      color: 'rgba(221,228,240,0.55)',
-      font: { size: 9, family: "'DM Mono', monospace" },
-      anchor: horizontal ? 'end' : 'end',
-      align:  horizontal ? 'right' : 'top',
-      offset: 2,
-      formatter: v => v > 0 ? v : '',
-    }
-  };
-
+  // Data labels handled by global custom plugin
   return CHARTS[id]=new Chart(ctx,{
     type:'bar',
     data:{labels,datasets:[{data,backgroundColor:bgc,borderColor:bdc,borderWidth:1,borderRadius:4,barPercentage:.72}]},
@@ -1576,15 +1562,7 @@ function mkDonut(id,labels,data,colors=null){
         tooltip:{backgroundColor:'#1c2a3e',borderColor:'#2a3c5e',borderWidth:1,titleColor:'#dde4f0',bodyColor:'#7e92b4',padding:8,cornerRadius:7,
           callbacks:{label:ctx=>{const t=ctx.dataset.data.reduce((a,b)=>a+b,0)||1;return ` ${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw/t*100)}%)`;}}
         },
-        datalabels:{
-          display: ctx => (ctx.dataset.data[ctx.dataIndex]/total) > 0.04,
-          color:'rgba(221,228,240,0.7)',
-          font:{size:9,family:"'DM Mono', monospace",weight:'500'},
-          formatter:(v,ctx)=>{
-            const pct=Math.round(v/total*100);
-            return pct>5?`${pct}%`:'';
-          }
-        }
+        datalabels:{ display: false }
       },animation:{duration:500}
     }
   });
@@ -1612,9 +1590,61 @@ function animFI(){
 // BOOT
 // ═══════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
-  // Register datalabels plugin, disabled by default (only bar/donut use it)
-  Chart.register(ChartDataLabels);
-  Chart.defaults.plugins.datalabels.display = false;
+  // Custom plugin: draw numbers on bar and donut charts
+  const labelPlugin = {
+    id:'labelPlugin',
+    afterDatasetsDraw(chart){
+      const {ctx} = chart;
+      const type = chart.config.type;
+      if(type !== 'bar' && type !== 'doughnut') return;
+      ctx.save();
+
+      if(type === 'bar'){
+        const isH = chart.options.indexAxis === 'y';
+        chart.data.datasets.forEach((ds,di)=>{
+          chart.getDatasetMeta(di).data.forEach((bar,i)=>{
+            const v = ds.data[i];
+            if(!v || v===0) return;
+            ctx.fillStyle = 'rgba(221,228,240,0.9)';
+            ctx.font = "bold 10px 'DM Mono',monospace";
+            if(isH){
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(v, bar.x + 6, bar.y);
+            } else {
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(v, bar.x, bar.y - 3);
+            }
+          });
+        });
+      }
+
+      if(type === 'doughnut'){
+        const total = chart.data.datasets[0].data.reduce((a,b)=>a+b,0)||1;
+        chart.data.datasets.forEach((ds,di)=>{
+          chart.getDatasetMeta(di).data.forEach((arc,i)=>{
+            const v = ds.data[i];
+            const pct = Math.round(v/total*100);
+            if(pct < 6) return;
+            const angle = arc.startAngle + (arc.endAngle - arc.startAngle)/2;
+            const r = (arc.innerRadius + arc.outerRadius)/2;
+            const x = arc.x + Math.cos(angle)*r;
+            const y = arc.y + Math.sin(angle)*r;
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.font = "bold 10px 'DM Mono',monospace";
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(pct+'%', x, y);
+          });
+        });
+      }
+
+      ctx.restore();
+    }
+  };
+
+  Chart.register(labelPlugin);
   initMesPicker();
   loadData();
 });
