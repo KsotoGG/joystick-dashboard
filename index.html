@@ -1622,6 +1622,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 
       if(type === 'doughnut'){
         const total = chart.data.datasets[0].data.reduce((a,b)=>a+b,0)||1;
+        const bgColors = chart.data.datasets[0].backgroundColor;
         chart.data.datasets.forEach((ds,di)=>{
           chart.getDatasetMeta(di).data.forEach((arc,i)=>{
             const v = ds.data[i];
@@ -1631,7 +1632,8 @@ window.addEventListener('DOMContentLoaded',()=>{
             const r = (arc.innerRadius + arc.outerRadius)/2;
             const x = arc.x + Math.cos(angle)*r;
             const y = arc.y + Math.sin(angle)*r;
-            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            // Dark text for better contrast on any color
+            ctx.fillStyle = 'rgba(5,13,26,0.85)';
             ctx.font = "bold 10px 'DM Mono',monospace";
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
