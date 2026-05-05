@@ -22,7 +22,7 @@ html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5;min-height:100vh;overflow-x:hidden}
 
 #loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s}
-.ld-logo{font-size:26px;font-weight:600;letter-spacing:-1px;margin-bottom:24px}
+.ld-logo{font-size:26px;font-weight:600;letter-spacing:-1px;margin-bottom:24px;display:flex;flex-direction:column;align-items:center;text-align:center}
 .ld-logo span{background:linear-gradient(135deg,var(--teal),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .ld-tabs{display:flex;gap:6px;margin-bottom:20px}
 .ld-tab{padding:3px 12px;border-radius:99px;font-size:11px;font-family:var(--mono);border:1px solid var(--border);color:var(--text3);transition:all .3s}
@@ -181,7 +181,12 @@ option{background:var(--bg3)}
 <body>
 
 <div id="loader">
-  <div class="ld-logo"><span style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#2dd4bf,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Joystick</span><br><span style="font-size:16px;color:#7e92b4">People Analytics</span></div>
+  <div class="ld-logo">
+    <img src="https://raw.githubusercontent.com/KsotoGG/joystick-dashboard/main/logo.png" 
+         onerror="this.style.display='none'" 
+         style="height:80px;border-radius:12px;margin-bottom:16px;display:block">
+    <span style="font-size:16px;color:#7e92b4;letter-spacing:.05em">People Analytics</span>
+  </div>
   <div class="ld-tabs">
     <div class="ld-tab" id="lt2022">2022</div>
     <div class="ld-tab" id="lt2023">2023</div>
