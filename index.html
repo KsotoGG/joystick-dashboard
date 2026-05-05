@@ -7,6 +7,7 @@
 <title>Joystick · People Analytics</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 :root{
   --bg:#090e1a;--bg2:#0f1624;--bg3:#161f30;--bg4:#1c2a3e;--bg5:#243048;
@@ -1541,11 +1542,31 @@ function mkBar(id,labels,data,colors,horizontal=false){
   const bdc=colors.length>1?labels.map((_,i)=>colors[i%colors.length]):[colors[0]||'#2dd4bf'];
   const opts={...BOPTS()};
   if(horizontal) opts.indexAxis='y';
-  return CHARTS[id]=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:bgc,borderColor:bdc,borderWidth:1,borderRadius:4,barPercentage:.72}]},options:opts});
+
+  // Data labels: show value at end of each bar
+  opts.plugins = {
+    ...opts.plugins,
+    datalabels: {
+      display: true,
+      color: 'rgba(221,228,240,0.55)',
+      font: { size: 9, family: "'DM Mono', monospace" },
+      anchor: horizontal ? 'end' : 'end',
+      align:  horizontal ? 'right' : 'top',
+      offset: 2,
+      formatter: v => v > 0 ? v : '',
+    }
+  };
+
+  return CHARTS[id]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:bgc,borderColor:bdc,borderWidth:1,borderRadius:4,barPercentage:.72}]},
+    options:opts
+  });
 }
 
 function mkDonut(id,labels,data,colors=null){
   const ctx=document.getElementById(id); if(!ctx) return null;
+  const total=data.reduce((a,b)=>a+b,0)||1;
   return CHARTS[id]=new Chart(ctx,{
     type:'doughnut',
     data:{labels,datasets:[{data,backgroundColor:colors||labels.map((_,i)=>PAL[i%PAL.length]),borderColor:'#0f1624',borderWidth:2}]},
@@ -1554,6 +1575,15 @@ function mkDonut(id,labels,data,colors=null){
         legend:{position:'bottom',labels:{color:'#7e92b4',font:{size:9},boxWidth:9,padding:8}},
         tooltip:{backgroundColor:'#1c2a3e',borderColor:'#2a3c5e',borderWidth:1,titleColor:'#dde4f0',bodyColor:'#7e92b4',padding:8,cornerRadius:7,
           callbacks:{label:ctx=>{const t=ctx.dataset.data.reduce((a,b)=>a+b,0)||1;return ` ${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw/t*100)}%)`;}}
+        },
+        datalabels:{
+          display: ctx => (ctx.dataset.data[ctx.dataIndex]/total) > 0.04,
+          color:'rgba(221,228,240,0.7)',
+          font:{size:9,family:"'DM Mono', monospace",weight:'500'},
+          formatter:(v,ctx)=>{
+            const pct=Math.round(v/total*100);
+            return pct>5?`${pct}%`:'';
+          }
         }
       },animation:{duration:500}
     }
@@ -1582,6 +1612,9 @@ function animFI(){
 // BOOT
 // ═══════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
+  // Register datalabels plugin, disabled by default (only bar/donut use it)
+  Chart.register(ChartDataLabels);
+  Chart.defaults.plugins.datalabels.display = false;
   initMesPicker();
   loadData();
 });
