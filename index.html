@@ -1107,7 +1107,22 @@ function renderKPIs(){
   const total=F.length||1;
   const mujeres=F.filter(p=>p.genero==='F').length;
   const pctF=Math.round(mujeres/total*100);
-  const rotTasa=activos?+(salidas/activos*100).toFixed(1):0;
+
+  // Tasa de rotación = Salidas / ((HC inicio + HC cierre) / 2) × 100
+  // HC inicio = primer mes con datos del período
+  // HC cierre = último mes con datos del período (= activos)
+  let hcInicio = activos;
+  if(yr !== 'all'){
+    const y = parseInt(yr);
+    const mp = meses || Array.from({length:12},(_,i)=>i);
+    // Primer mes del período con datos
+    for(const mi of mp){
+      const n = hc(F, y, mi);
+      if(n > 0){ hcInicio = n; break; }
+    }
+  }
+  const hcPromedio = (hcInicio + activos) / 2 || 1;
+  const rotTasa = +(salidas / hcPromedio * 100).toFixed(1);
 
   // vs previous year
   const prevY=yr==='all'?null:String(+yr-1);
@@ -1127,7 +1142,8 @@ function renderKPIs(){
     {l:'Género F',v:pctF+'%',b:`${mujeres} mujeres`,bt:'nt',ctx:'Proporción femenina',c:'t-purple',spark:false},
     {l:'Planilla del Período',v:'₡'+fmtN(planTotal),b:null,bt:'nt',ctx:`Prom/mes: ₡${fmtN(planMes)}`,c:'t-amber',spark:false},
     {l:'Tasa de Rotación',v:rotTasa+'%',b:rotTasa>5?'Alta':rotTasa>3?'Media':'OK',
-     bt:rotTasa>5?'dn':rotTasa>3?'nt':'up',ctx:`${salidas} sal. / ${activos} activos`,
+     bt:rotTasa>5?'dn':rotTasa>3?'nt':'up',
+     ctx:`${salidas} sal. / prom. ${Math.round(hcPromedio)} · Meta <5%`,
      c:rotTasa>5?'t-red':rotTasa>3?'t-amber':'t-teal',spark:false},
   ];
 
