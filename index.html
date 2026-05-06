@@ -462,71 +462,44 @@ option{background:var(--bg3)}
 </div>
 
 <script>
-// ═══════════════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════════════
+
 const YEARS = [2022,2023,2024,2025,2026];
 
-// URLs exactas publicadas para cada pestaña de colaboradores
 const YEAR_URL = {
-  2022: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?gid=1494200584&single=true&output=csv',
-  2023: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?gid=1192022268&single=true&output=csv',
-  2024: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?gid=1703878145&single=true&output=csv',
-  2025: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?gid=594954360&single=true&output=csv',
-  2026: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?gid=1273792649&single=true&output=csv',
+  2022: 'https:
+  2023: 'https:
+  2024: 'https:
+  2025: 'https:
+  2026: 'https:
 };
 
-// URL del sheet de Revenue por empresa
-const REVENUE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9sevoAAQSIQSOYswMM1C_6yxdubcQAx-atDd0N5uho65IA0FnvwFVeKbGhZX0blJOV7-LEt9AX9jl/pub?gid=717552885&single=true&output=csv';
+const REVENUE_URL = 'https:
 
-// URLs del sheet de Aumentos Salariales
 const AUMENTOS_URL = {
-  2025: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRb7qOTF0UTxkk00C5mpEC8LfGhuE8MBxr7A0mTnNf46sBdy0mKiMYDOEgM6JRXic1_y1ntO7DzpPj5/pub?gid=83497296&single=true&output=csv',
-  2026: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRb7qOTF0UTxkk00C5mpEC8LfGhuE8MBxr7A0mTnNf46sBdy0mKiMYDOEgM6JRXic1_y1ntO7DzpPj5/pub?gid=1775029576&single=true&output=csv',
+  2025: 'https:
+  2026: 'https:
 };
 
-// REVENUE[year][mes 0-11] = ingresos de Joystick ese mes
 let REVENUE = {};
-// AUMENTOS[year] = array de {colaborador, depto, motivo, meses:[0..11]}
+
 let AUMENTOS = {};
 const MOL   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MOF   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const PAL   = ['#2dd4bf','#38bdf8','#a78bfa','#f472b6','#22d3a0','#fbbf24','#f87171','#818cf8','#fb923c','#34d399'];
 const YCOL  = {2022:'#4a6080',2023:'#5a80b0',2024:'#38bdf8',2025:'#22d3a0',2026:'#2dd4bf'};
 
-// ═══════════════════════════════════════════
-// DATA MODEL
-// ─────────────────────────────────────────
-// RAW_BY_YEAR[year] = array of row objects for that year
-// Each row = one collaborator for that year
-// row.sal[0..11] = salary per month (0 = not active)
-// row.nombre = collaborator name (unique key across years)
-//
-// PERSONAS = unique collaborators (by name) across all years
-// PERSONAS[name] = { ...latest demo data, years: [2022,...], sal: {2022:[...],2023:[...]} }
-//
-// When filtering by year Y:
-//   → look at PERSONAS[name].sal[Y]
-//   → headcount for month M in year Y = count of persons with sal[Y][M] > 0
-// ═══════════════════════════════════════════
-let RAW_BY_YEAR = {}; // {year: [rows]}
-let PERSONAS    = {}; // {name: persona_obj}
-let FILTERED    = []; // current filtered persona list
+let RAW_BY_YEAR = {}; 
+let PERSONAS    = {}; 
+let FILTERED    = []; 
 let CHARTS      = {};
 let ACT_TAL     = 'antig';
-let SEL_MESES   = null;  // null=all, array=selected month indices
+let SEL_MESES   = null;  
 let MODO        = 'todo';
 
-// ═══════════════════════════════════════════
-// LOADER HELPERS
-// ═══════════════════════════════════════════
 const ldBar = p => { const b=document.getElementById('ldBar'); if(b) b.style.width=p+'%'; };
 const ldMsg = m => { const e=document.getElementById('ldMsg'); if(e) e.textContent=m; };
 const ldTab = (y,s) => { const e=document.getElementById('lt'+y); if(e) e.className='ld-tab '+s; };
 
-// ═══════════════════════════════════════════
-// CSV PARSER
-// ═══════════════════════════════════════════
 function parseCSV(text){
   const lines = text.replace(/\r/g,'').split('\n');
   return lines.map(line=>{
@@ -542,16 +515,13 @@ function parseCSV(text){
   });
 }
 
-// ═══════════════════════════════════════════
-// DATE PARSER
-// ═══════════════════════════════════════════
 function parseDate(s){
   if(!s||s.length<4) return null;
   s=s.trim();
-  // ISO: yyyy-mm-dd
+  
   let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if(m) return {y:+m[1],m:+m[2]-1,d:+m[3]};
-  // d/m/yyyy
+  
   m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
   if(m){
     const d=+m[1],mo=+m[2],y=+m[3];
@@ -561,9 +531,6 @@ function parseDate(s){
   return null;
 }
 
-// ═══════════════════════════════════════════
-// SALARY PARSER (Costa Rica: 800.000 → 800000)
-// ═══════════════════════════════════════════
 function parseSal(s){
   if(!s) return 0;
   s=String(s).replace(/[₡$\s]/g,'').trim();
@@ -577,14 +544,6 @@ function parseSal(s){
   return isNaN(n)?0:n;
 }
 
-// ═══════════════════════════════════════════
-// LOAD ONE SHEET TAB
-// ═══════════════════════════════════════════
-// ═══════════════════════════════════════════
-// LOAD AUMENTOS SALARIALES
-// Estructura: PAIS, CONTRATO, EMPRESA, COLABORADOR, SAL_ANTERIOR, COMENTARIO, [fechas...]
-// Filtra solo Joystick
-// ═══════════════════════════════════════════
 async function loadAumentos(){
   AUMENTOS = {};
   for(const [yearStr, url] of Object.entries(AUMENTOS_URL)){
@@ -598,30 +557,26 @@ async function loadAumentos(){
 
       const headers = rows[0].map(h => h.toLowerCase().trim());
 
-      // Find column indices
       const colEmpresa    = headers.findIndex(h => h.includes('empresa'));
       const colColab      = headers.findIndex(h => h.includes('colaborador'));
       const colDepto      = headers.findIndex(h => h.includes('depto') || h.includes('departamento'));
       const colComentario = headers.findIndex(h => h.includes('comentario') || h.includes('motivo'));
 
-      // Find date columns: format d/m/yyyy or m/d/yyyy
-      // e.g. 1/1/2026, 2/1/2026...
-      const mesColMap = {}; // month 0-11 → col index
+      const mesColMap = {}; 
       headers.forEach((h, idx) => {
         const clean = h.replace(/\s/g,'');
-        // Match d/m/yyyy or m/d/yyyy
+        
         const m = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if(!m) return;
         const y = parseInt(m[3]);
         if(y !== year) return;
-        // Assume format m/d/yyyy (Jan=1, Feb=2...)
-        const mo = parseInt(m[1]) - 1; // 0-indexed
+        
+        const mo = parseInt(m[1]) - 1; 
         if(mo >= 0 && mo < 12) mesColMap[mo] = idx;
       });
 
       console.log(`[AUMENTOS ${year}] mesColMap:`, JSON.stringify(mesColMap));
 
-      // Filter Joystick rows
       const joystickRows = rows.slice(1).filter(r =>
         colEmpresa >= 0 && (r[colEmpresa]||'').toLowerCase().includes('joystick')
       );
@@ -642,17 +597,14 @@ async function loadAumentos(){
     }
   }
 }
+
+async function fetchTab(year){
   const url = YEAR_URL[year];
   const r = await fetch(url);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.text();
 }
 
-// ═══════════════════════════════════════════
-// LOAD REVENUE DATA
-// Reads revenue sheet, finds Joystick row
-// Columns: Empresa, Jan-24, Feb-24 ... Dec-26
-// ═══════════════════════════════════════════
 async function loadRevenue(){
   try{
     const r = await fetch(REVENUE_URL);
@@ -663,14 +615,11 @@ async function loadRevenue(){
 
     const headers = rows[0].map(h => h.toLowerCase().trim());
 
-    // Find Joystick row (case insensitive)
     const joystickRow = rows.slice(1).find(r =>
       (r[0]||'').toLowerCase().includes('joystick')
     );
     if(!joystickRow){ console.warn('[REVENUE] Joystick row not found'); return; }
 
-    // Map header names to year/month
-    // Format: Jan-24, Feb-24 ... Dec-26
     const MONTH_MAP = {
       jan:0,feb:1,mar:2,apr:3,may:4,jun:5,
       jul:6,aug:7,sep:8,oct:9,nov:10,dec:11
@@ -695,15 +644,9 @@ async function loadRevenue(){
   }
 }
 
-// ═══════════════════════════════════════════
-// PARSE ONE YEAR'S SHEET
-// Returns array of row objects
-// ═══════════════════════════════════════════
 function parseSheet(csv, year){
   const all = parseCSV(csv);
 
-  // Header is always row 0 (no blank row confirmed from real data)
-  // Fallback: scan first 3 rows for the one containing COLABORADOR
   let hi = 0;
   for(let i = 0; i < Math.min(3, all.length); i++){
     if(all[i].some(c => c.toUpperCase().includes('COLABORADOR'))){
@@ -713,7 +656,6 @@ function parseSheet(csv, year){
   const headers = all[hi].map(h => h.toLowerCase().trim());
   const data    = all.slice(hi + 1).filter(r => r.some(c => c && c.trim()));
 
-  // Column finder
   const find=(...keys)=>{
     for(const k of keys){
       const kn=k.toLowerCase().trim();
@@ -745,19 +687,15 @@ function parseSheet(csv, year){
     destino:  find('destino colaborador','destino'),
   };
 
-  // ── DETECT SALARY COLUMNS ──
-  // Headers confirmed: "ene-23", "feb-23" ... some may have leading space
-  // Strip ALL whitespace aggressively
   const yy  = String(year).slice(2);
   const MES = ['ene','feb','mar','abr','may','jun','jul','ago','sept','oct','nov','dic'];
 
   const salMap = {};
 
   headers.forEach((h, idx) => {
-    // Strip ALL whitespace characters including non-breaking spaces
+    
     const hc = h.replace(/[^a-z0-9\-]/gi,'').toLowerCase();
 
-    // Try exact match: ene-23, abr-23, sept-23 etc.
     MES.forEach((prefix, mi) => {
       if(salMap[mi] !== undefined) return;
       if(hc === `${prefix}-${yy}` || hc === `${prefix}${yy}` || hc === `${prefix}-${year}`){
@@ -765,7 +703,6 @@ function parseSheet(csv, year){
       }
     });
 
-    // Date format: 2023-01-01
     const dm = hc.match(/^(\d{4})(\d{2})\d{2}$/);
     if(dm && parseInt(dm[1]) === year){
       const mi = parseInt(dm[2]) - 1;
@@ -777,12 +714,10 @@ function parseSheet(csv, year){
   console.log(`[${year}] Found ${foundCount}/12 salary cols:`, JSON.stringify(salMap));
   console.log(`[${year}] Raw headers[19-31]:`, headers.slice(19,32));
 
-  // If not all 12 found, fill missing by sequential position
-  // Strategy: find first salary col found and fill gaps sequentially
   if(foundCount > 0 && foundCount < 12){
-    // Find the minimum index found
+    
     const minIdx = Math.min(...Object.values(salMap));
-    // Fill missing months by position relative to first found
+    
     const firstMi = parseInt(Object.keys(salMap).find(k => salMap[k] === minIdx));
     for(let mi = 0; mi < 12; mi++){
       if(salMap[mi] === undefined){
@@ -791,13 +726,12 @@ function parseSheet(csv, year){
       }
     }
   } else if(foundCount === 0){
-    // No months found at all - use position after DESTINO
+    
     const lastKnown = Math.max(0, ...Object.values(ci).filter(v => v >= 0));
     for(let mi = 0; mi < 12; mi++) salMap[mi] = lastKnown + 1 + mi;
     console.warn(`[${year}] No salary cols found. Using position ${lastKnown+1} onwards`);
   }
 
-  // Parse each data row
   const g=(row,i)=>i>=0?(row[i]||'').trim():'';
   const gv=(row,i)=>g(row,i).replace(/^N\/A$/i,'').trim();
 
@@ -805,7 +739,6 @@ function parseSheet(csv, year){
     const nombre=gv(row,ci.nombre);
     if(!nombre||nombre.length<2) return null;
 
-    // Salary per month
     const sal=[];
     for(let mi=0;mi<12;mi++){
       sal.push(salMap[mi]!==undefined ? parseSal(row[salMap[mi]]) : 0);
@@ -841,7 +774,7 @@ function parseSheet(csv, year){
       motivoSalida:gv(row,ci.motivo),
       razonSalida: gv(row,ci.razon),
       destino:     gv(row,ci.destino),
-      sal, // [0..11] salary per month for this year
+      sal, 
     };
   }).filter(Boolean);
 
@@ -849,10 +782,6 @@ function parseSheet(csv, year){
   return rows;
 }
 
-// ═══════════════════════════════════════════
-// BUILD PERSONAS MAP
-// Each person appears once; salaries grouped by year
-// ═══════════════════════════════════════════
 function buildPersonas(){
   PERSONAS={};
 
@@ -863,7 +792,7 @@ function buildPersonas(){
       if(!PERSONAS[key]){
         PERSONAS[key]={
           nombre:r.nombre, years:[], sal:{},
-          // demo data — will be updated with latest year's data
+          
           empresa:'',pais:'',contrato:'',depto:'',puesto:'',genero:'',
           estado:'',grado:'',ingles:'',hijos:0,provincia:'',canton:'',
           ingresoDate:null,salidaDate:null,nacDate:null,edad:0,
@@ -873,13 +802,10 @@ function buildPersonas(){
       }
       const p=PERSONAS[key];
 
-      // Add year
       if(!p.years.includes(year)) p.years.push(year);
 
-      // Store salaries for this year
       p.sal[year]=[...r.sal];
 
-      // Earliest ingreso date
       if(r.ingresoDate){
         if(!p.ingresoDate||r.ingresoDate.y<p.ingresoDate.y||
            (r.ingresoDate.y===p.ingresoDate.y&&r.ingresoDate.m<p.ingresoDate.m)){
@@ -887,7 +813,6 @@ function buildPersonas(){
         }
       }
 
-      // Salida date if exists
       if(r.salidaDate){
         p.salidaDate=r.salidaDate;
         p.motivoSalida=r.motivoSalida||p.motivoSalida;
@@ -895,7 +820,6 @@ function buildPersonas(){
         p.destino=r.destino||p.destino;
       }
 
-      // Update demo data with the latest year's row
       if(year>=Math.max(...p.years)){
         p.empresa=r.empresa||p.empresa;
         p.pais=r.pais||p.pais;
@@ -915,7 +839,6 @@ function buildPersonas(){
     });
   });
 
-  // Finalize
   Object.values(PERSONAS).forEach(p=>{
     p.years.sort((a,b)=>a-b);
     p.activo=!p.salidaDate;
@@ -928,12 +851,10 @@ function buildPersonas(){
   console.log(`[PERSONAS] ${Object.keys(PERSONAS).length} personas únicas`);
 }
 
-// HEADCOUNT: persons with salary > 0 in month M of year Y
-// AND who did NOT leave during that month
 function hc(personas, year, month){
   return personas.filter(p => {
     if(!p.sal[year] || (p.sal[year][month]||0) === 0) return false;
-    // Si tiene fecha de salida en ese mismo mes/año → ya no está activo ese mes
+    
     if(p.salidaDate && p.salidaDate.y === year && p.salidaDate.m === month) return false;
     return true;
   }).length;
@@ -947,9 +868,6 @@ function hcCierre(personas, year){
   return {n:0,m:-1};
 }
 
-// ═══════════════════════════════════════════
-// LOAD ALL DATA
-// ═══════════════════════════════════════════
 async function loadData(){
   RAW_BY_YEAR={}; PERSONAS={}; FILTERED=[];
   let loaded=0;
@@ -973,7 +891,7 @@ async function loadData(){
 
   ldBar(82); ldMsg('Construyendo personas únicas...');
   buildPersonas();
-  // Load revenue and aumentos in parallel
+  
   await Promise.all([loadRevenue(), loadAumentos()]);
 
   const total=Object.keys(PERSONAS).length;
@@ -989,7 +907,6 @@ async function loadData(){
   buildFilters();
   ldBar(94); ldMsg('Renderizando...');
 
-  // Default: show 2026
   document.getElementById('selYear').value='2026';
   syncYearPill('2026');
   applyFilters();
@@ -1014,9 +931,6 @@ async function reloadData(){
   await loadData();
 }
 
-// ═══════════════════════════════════════════
-// FILTERS
-// ═══════════════════════════════════════════
 function uniq(key){
   return [...new Set(Object.values(PERSONAS).map(p=>p[key]).filter(v=>v&&v!=='N/D'))].sort();
 }
@@ -1070,19 +984,19 @@ function applyFilters(){
   const meses=getMeses();
 
   FILTERED=Object.values(PERSONAS).filter(p=>{
-    // Year filter: person must have salary in that year
+    
     if(yr!=='all'){
       const y=parseInt(yr);
       if(!p.sal[y]) return false;
-      // Must have at least one month with salary in that year
+      
       if(!p.sal[y].some(v=>v>0)) return false;
     }
-    // Month filter
+    
     if(meses!==null&&yr!=='all'){
       const y=parseInt(yr);
       if(!p.sal[y]||!meses.some(mi=>(p.sal[y][mi]||0)>0)) return false;
     }
-    // Demo filters
+    
     if(depto!=='all'&&p.depto!==depto) return false;
     if(cont!=='all'&&p.contrato!==cont) return false;
     if(gen!=='all'&&p.genero!==gen) return false;
@@ -1093,7 +1007,6 @@ function applyFilters(){
 
   console.log(`[FILTER] Año:${yr} → ${FILTERED.length} personas`);
 
-  // Update period chip
   const el=document.getElementById('chPeriodo');
   if(el) el.textContent=getPeriodoLabel();
 
@@ -1120,9 +1033,6 @@ function destroyCharts(){
   CHARTS={};
 }
 
-// ═══════════════════════════════════════════
-// MES PICKER
-// ═══════════════════════════════════════════
 function initMesPicker(){
   const c=document.getElementById('mesChecks');
   c.innerHTML=MOF.map((m,i)=>`
@@ -1204,9 +1114,6 @@ function getPeriodoLabel(){
   return `📌 ${ma.map(i=>MOL[i]).join(', ')} · ${yr}`;
 }
 
-// ═══════════════════════════════════════════
-// RENDER ALL
-// ═══════════════════════════════════════════
 function renderAll(){
   renderKPIs();
   renderTend();
@@ -1227,9 +1134,6 @@ function renderAll(){
   animFI();
 }
 
-// ═══════════════════════════════════════════
-// KPIs
-// ═══════════════════════════════════════════
 function renderKPIs(){
   const F=FILTERED;
   const yr=document.getElementById('selYear').value;
@@ -1240,10 +1144,10 @@ function renderKPIs(){
   if(yr==='all'){
     const maxY=Math.max(...YEARS.filter(y=>F.some(p=>p.sal[y])));
     const rowsMaxY=F.filter(p=>p.sal[maxY]);
-    // Headcount = last month with data in maxY
+    
     const c=hcCierre(rowsMaxY,maxY);
     activos=c.n; activosMes=c.m>=0?`Cierre ${MOL[c.m]}-${maxY}`:'Todos';
-    // Ingresos/salidas = totales históricos
+    
     salidas=F.filter(p=>p.salidaDate).length;
     ingresos=F.filter(p=>p.ingresoDate).length;
     planTotal=F.reduce((s,p)=>s+YEARS.reduce((ys,y)=>ys+(p.sal[y]||[]).reduce((a,b)=>a+b,0),0),0);
@@ -1253,18 +1157,18 @@ function renderKPIs(){
     const rowsY=F.filter(p=>p.sal[y]);
 
     if(meses&&meses.length>0){
-      // Con filtro de meses: headcount del ÚLTIMO mes seleccionado
+      
       const lastM=meses[meses.length-1];
       activos=hc(rowsY,y,lastM);
       activosMes=`${MOL[lastM]}-${yr}`;
-      // Ingresos/salidas ACUMULADOS de todos los meses seleccionados
+      
       salidas=F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&meses.includes(p.salidaDate.m)).length;
       ingresos=F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&meses.includes(p.ingresoDate.m)).length;
     } else {
-      // Año completo: headcount del último mes con datos
+      
       const c=hcCierre(rowsY,y);
       activos=c.n; activosMes=c.m>=0?`Cierre ${MOL[c.m]}-${yr}`:yr;
-      // Ingresos/salidas acumulados de todo el año
+      
       salidas=F.filter(p=>p.salidaDate&&p.salidaDate.y===y).length;
       ingresos=F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y).length;
     }
@@ -1278,14 +1182,11 @@ function renderKPIs(){
   const mujeres=F.filter(p=>p.genero==='F').length;
   const pctF=Math.round(mujeres/total*100);
 
-  // Tasa de rotación = Salidas / ((HC inicio + HC cierre) / 2) × 100
-  // HC inicio = primer mes con datos del período
-  // HC cierre = último mes con datos del período (= activos)
   let hcInicio = activos;
   if(yr !== 'all'){
     const y = parseInt(yr);
     const mp = meses || Array.from({length:12},(_,i)=>i);
-    // Primer mes del período con datos
+    
     for(const mi of mp){
       const n = hc(F, y, mi);
       if(n > 0){ hcInicio = n; break; }
@@ -1294,7 +1195,6 @@ function renderKPIs(){
   const hcPromedio = (hcInicio + activos) / 2 || 1;
   const rotTasa = +(salidas / hcPromedio * 100).toFixed(1);
 
-  // vs previous year
   const prevY=yr==='all'?null:String(+yr-1);
   const prevF=prevY?Object.values(PERSONAS).filter(p=>p.sal[parseInt(prevY)]&&p.sal[parseInt(prevY)].some(v=>v>0)):[];
   const prevC=prevY?hcCierre(prevF,parseInt(prevY)):{n:0};
@@ -1302,7 +1202,6 @@ function renderKPIs(){
 
   console.log(`[KPI] Año:${yr} FILTERED:${F.length} Activos:${activos}(${activosMes}) Salidas:${salidas}`);
 
-  // Revenue per Employee (RPE) = Revenue período / HC activo
   let revTotal = 0;
   if(yr === 'all'){
     revTotal = YEARS.reduce((s,y) => s+(REVENUE[y]?Object.values(REVENUE[y]).reduce((a,b)=>a+b,0):0), 0);
@@ -1313,7 +1212,6 @@ function renderKPIs(){
   }
   const rpeVal = activos > 0 ? revTotal / activos : 0;
 
-  // RPE growth vs año anterior
   let rpeGrowth = null;
   if(yr !== 'all' && REVENUE[parseInt(yr)-1]){
     const prevYr2 = parseInt(yr)-1;
@@ -1356,7 +1254,6 @@ function renderKPIs(){
       ${k.spark?`<div class="kpi-spark"><canvas id="spk${i}" height="28"></canvas></div>`:''}
     </div>`).join('');
 
-  // Sparkline
   kpis.forEach((k,i)=>{
     if(!k.spark) return;
     const ctx=document.getElementById('spk'+i); if(!ctx) return;
@@ -1377,22 +1274,19 @@ function fmtN(n){
   return Math.round(n).toLocaleString('es-CR');
 }
 
-// ═══════════════════════════════════════════
-// TENDENCIA MENSUAL
-// ═══════════════════════════════════════════
 function renderTend(){
   const F=FILTERED;
   const yr=document.getElementById('selYear').value;
   const label=getPeriodoLabel();
 
   if(yr==='all'){
-    // Todos los años: una línea por año en headcount
+    
     const dsHC=YEARS.map(y=>({
       label:String(y),
       data:Array.from({length:12},(_,m)=>hc(F,y,m)),
       borderColor:YCOL[y],bg:'transparent',fill:false,bw:y===2026?2.5:1.5,pr:y===2026?3:2
     }));
-    // Ingresos y salidas del año más reciente
+    
     const maxY=Math.max(...YEARS.filter(y=>F.some(p=>p.sal[y])));
     const ingData=Array.from({length:12},(_,m)=>F.filter(p=>p.ingresoDate&&p.ingresoDate.y===maxY&&p.ingresoDate.m===m).length);
     const salData=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===maxY&&p.salidaDate.m===m).length);
@@ -1421,13 +1315,10 @@ function renderTend(){
   }
 }
 
-// ═══════════════════════════════════════════
-// DEPTO
-// ═══════════════════════════════════════════
 function renderDepto(){
   const yr=document.getElementById('selYear').value;
   const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
-  // For depto chart, count persons active in the last month of the year
+  
   const c=hcCierre(FILTERED,y);
   const lastM=c.m>=0?c.m:11;
   const counts={};
@@ -1441,7 +1332,6 @@ function renderDepto(){
   CHARTS.depto=mkBar('cDepto',sorted.map(x=>x[0]),sorted.map(x=>x[1]),PAL,true);
 }
 
-// Donuts
 function renderGen(){
   const c=countBy(FILTERED,'genero');
   const cols=Object.keys(c).map(l=>l==='F'?'#f472b6':l==='M'?'#38bdf8':'#a78bfa');
@@ -1451,7 +1341,6 @@ function renderCont(){ const c=countBy(FILTERED,'contrato'); CHARTS.cont=mkDonut
 function renderEst(){ const c=countBy(FILTERED,'estado'); CHARTS.est=mkDonut('cEst',Object.keys(c),Object.values(c)); }
 function renderPaisChart(){ const c=countBy(FILTERED,'pais'); CHARTS.pais=mkDonut('cPais',Object.keys(c),Object.values(c)); }
 
-// Talent tabs
 function switchTal(tab,el){
   ACT_TAL=tab;
   document.querySelectorAll('#talTabs .tab').forEach(t=>t.classList.remove('active'));
@@ -1477,7 +1366,6 @@ function renderTal(tab){
   CHARTS.tal=mkBar('cTal',labels,data,[color],false);
 }
 
-// Progress bars
 function renderProg(elId,field){
   const c=countBy(FILTERED,field);
   const total=FILTERED.length||1;
@@ -1508,7 +1396,6 @@ function renderProgField(elId,field){
   }).join('');
 }
 
-// Puestos table
 function renderPuestos(){
   const c=countBy(FILTERED,'puesto');
   const total=FILTERED.length||1;
@@ -1533,7 +1420,6 @@ function renderPuestos(){
   }).join('');
 }
 
-// Rotación
 function renderRot(){
   const F=FILTERED;
   const yr=document.getElementById('selYear').value;
@@ -1558,7 +1444,6 @@ function renderRot(){
   });
 }
 
-// Salidas charts
 function renderMot(){
   const c=countBy(FILTERED.filter(p=>p.motivoSalida&&p.motivoSalida!=='N/A'),'motivoSalida');
   const s=Object.entries(c).sort((a,b)=>b[1]-a[1]);
@@ -1577,7 +1462,6 @@ function renderDest(){
   CHARTS.dest=mkDonut('cDest',Object.keys(c),Object.values(c));
 }
 
-// Heatmap
 function renderHM(){
   const F=FILTERED;
   const yr=document.getElementById('selYear').value;
@@ -1602,7 +1486,6 @@ function renderHM(){
   </div>`;
 }
 
-// Planilla
 function renderPlan(){
   const F=FILTERED;
   const yr=document.getElementById('selYear').value;
@@ -1638,7 +1521,6 @@ function renderPlan(){
   ].map(s=>`<div class="pstat"><div class="pstat-l">${s.l}</div><div class="pstat-v" style="color:${s.c}">${s.v}</div></div>`).join('');
 }
 
-// Interanual
 function renderIA(){
   const ds=YEARS.map(y=>({
     label:String(y),
@@ -1648,7 +1530,6 @@ function renderIA(){
   CHARTS.ia=mkLine('cIA',MOL,ds);
 }
 
-// Flujo
 function renderFlujo(){
   const F=FILTERED;
   const yr=document.getElementById('selYear').value;
@@ -1667,14 +1548,10 @@ function renderFlujo(){
   });
 }
 
-// ═══════════════════════════════════════════
-// AUMENTOS SALARIALES
-// ═══════════════════════════════════════════
 function renderAumentos(){
   const yr  = document.getElementById('selYear').value;
   const años = yr === 'all' ? [2025,2026] : [parseInt(yr)].filter(y => AUMENTOS[y]);
 
-  // Combinar datos de los años seleccionados
   const rows = años.flatMap(y => (AUMENTOS[y]||[]).map(r => ({...r, year:y})));
 
   if(!rows.length){
@@ -1685,7 +1562,6 @@ function renderAumentos(){
     return;
   }
 
-  // KPIs
   const count    = rows.length;
   const total    = rows.reduce((s,r) => s + r.meses.reduce((a,b)=>a+b,0), 0);
   const prom     = count > 0 ? total/count : 0;
@@ -1701,7 +1577,6 @@ function renderAumentos(){
   document.getElementById('augMesCtx').textContent  = `₡${fmtN(porMes[maxMesIdx])}`;
   document.getElementById('augBadge').textContent   = años.join(' & ');
 
-  // Gráfico por mes — una línea por año
   const dsAug = [2025,2026].filter(y=>AUMENTOS[y]&&AUMENTOS[y].length).map(y => ({
     label: String(y),
     data:  Array.from({length:12}, (_,mi) =>
@@ -1714,7 +1589,6 @@ function renderAumentos(){
   if(CHARTS.augMes){CHARTS.augMes.destroy();delete CHARTS.augMes;}
   CHARTS.augMes = mkLine('cAugMes', MOL, dsAug);
 
-  // Motivo — donut
   const motivoC = {};
   rows.forEach(r => {
     const m = r.motivo || 'Sin especificar';
@@ -1725,7 +1599,6 @@ function renderAumentos(){
   if(CHARTS.augMotivo){CHARTS.augMotivo.destroy();delete CHARTS.augMotivo;}
   CHARTS.augMotivo = mkDonut('cAugMotivo', motivoKeys, motivoVals);
 
-  // Por departamento — barra horizontal
   const deptoC = {};
   rows.forEach(r => {
     const d = r.depto || 'N/D';
@@ -1735,7 +1608,7 @@ function renderAumentos(){
   if(CHARTS.augDepto){CHARTS.augDepto.destroy();delete CHARTS.augDepto;}
   CHARTS.augDepto = mkBar('cAugDepto',
     deptoSorted.map(x=>x[0]),
-    deptoSorted.map(x=>Math.round(x[1]/1000)/1000), // en miles
+    deptoSorted.map(x=>Math.round(x[1]/1000)/1000), 
     PAL, true
   );
 }
@@ -1762,9 +1635,6 @@ function renderAumentos(){
     </div>`).join('');
 }
 
-// ═══════════════════════════════════════════
-// CHART HELPERS
-// ═══════════════════════════════════════════
 function BOPTS(){
   return{
     responsive:true,maintainAspectRatio:false,
@@ -1807,7 +1677,6 @@ function mkBar(id,labels,data,colors,horizontal=false){
   const opts={...BOPTS()};
   if(horizontal) opts.indexAxis='y';
 
-  // Data labels handled by global custom plugin
   return CHARTS[id]=new Chart(ctx,{
     type:'bar',
     data:{labels,datasets:[{data,backgroundColor:bgc,borderColor:bdc,borderWidth:1,borderRadius:4,barPercentage:.72}]},
@@ -1851,11 +1720,8 @@ function animFI(){
   document.querySelectorAll('.fi:not(.vis)').forEach(el=>io.observe(el));
 }
 
-// ═══════════════════════════════════════════
-// BOOT
-// ═══════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
-  // Custom plugin: draw numbers on bar and donut charts
+  
   const labelPlugin = {
     id:'labelPlugin',
     afterDatasetsDraw(chart){
@@ -1897,7 +1763,7 @@ window.addEventListener('DOMContentLoaded',()=>{
             const r = (arc.innerRadius + arc.outerRadius)/2;
             const x = arc.x + Math.cos(angle)*r;
             const y = arc.y + Math.sin(angle)*r;
-            // Dark text for better contrast on any color
+            
             ctx.fillStyle = 'rgba(5,13,26,0.85)';
             ctx.font = "bold 10px 'DM Mono',monospace";
             ctx.textAlign = 'center';
