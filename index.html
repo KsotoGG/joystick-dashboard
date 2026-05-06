@@ -430,7 +430,7 @@ option{background:var(--bg3)}
   </div>
   <div class="cg">
     <div class="panel c12 fi">
-      <div class="ph"><div><div class="pt">Aumentos por Departamento</div><div class="ps">Monto total acumulado de aumentos</div></div></div>
+      <div class="ph"><div><div class="pt">Aumentos por Departamento</div><div class="ps">% acumulado sobre planilla total del departamento</div></div></div>
       <div style="height:220px"><canvas id="cAugDepto"></canvas></div>
     </div>
   </div>
@@ -1605,18 +1605,48 @@ function renderAumentos(){
   if(CHARTS.augMotivo){CHARTS.augMotivo.destroy();delete CHARTS.augMotivo;}
   CHARTS.augMotivo = mkDonut('cAugMotivo', motivoKeys, motivoVals);
 
-  const deptoC = {};
+  // Por departamento: % acumulado sobre planilla del departamento
+  const deptoAumento = {};
+  const deptoPlanilla = {};
+  const yr2 = document.getElementById('selYear').value;
+  const y2 = yr2==='all' ? 2026 : parseInt(yr2);
+
   rows.forEach(r => {
     const d = r.depto || 'N/D';
-    deptoC[d] = (deptoC[d]||0) + r.meses.reduce((a,b)=>a+b,0);
+    // Sumar monto total de aumentos por depto
+    deptoAumento[d] = (deptoAumento[d]||0) + r.meses.reduce((a,b)=>a+b,0);
   });
-  const deptoSorted = Object.entries(deptoC).sort((a,b)=>b[1]-a[1]);
+
+  // Calcular planilla total por departamento (del año filtrado)
+  Object.values(PERSONAS).forEach(p => {
+    if(!p.sal[y2]) return;
+    const d = p.depto || 'N/D';
+    const planillaAnual = p.sal[y2].reduce((a,b)=>a+b,0);
+    deptoPlanilla[d] = (deptoPlanilla[d]||0) + planillaAnual;
+  });
+
+  // Calcular % = aumento / planilla * 100
+  const deptoSorted = Object.entries(deptoAumento)
+    .map(([d, aum]) => ({
+      d,
+      pct: deptoPlanilla[d] ? +(aum / deptoPlanilla[d] * 100).toFixed(2) : 0
+    }))
+    .filter(x => x.pct > 0)
+    .sort((a,b) => b.pct - a.pct);
+
   if(CHARTS.augDepto){CHARTS.augDepto.destroy();delete CHARTS.augDepto;}
   CHARTS.augDepto = mkBar('cAugDepto',
-    deptoSorted.map(x=>x[0]),
-    deptoSorted.map(x=>Math.round(x[1]/1000)/1000), 
+    deptoSorted.map(x=>x.d),
+    deptoSorted.map(x=>x.pct),
     PAL, true
   );
+
+  // Update chart subtitle
+  const panel = document.querySelector('#cAugDepto')?.closest('.panel');
+  if(panel){
+    const ps = panel.querySelector('.ps');
+    if(ps) ps.textContent = '% del total de planilla por departamento';
+  }
 }
 
 function renderAlertas(){
