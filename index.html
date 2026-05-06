@@ -583,7 +583,7 @@ async function loadAumentos(){
 
       AUMENTOS[year] = joystickRows.map(r => ({
         colaborador: (r[colColab]||'').trim(),
-        depto:       (r[colDepto]||'').trim(),
+        depto:       '', // will be resolved from PERSONAS
         motivo:      (r[colComentario]||'').trim(),
         meses: Array.from({length:12}, (_,mi) =>
           mesColMap[mi] !== undefined ? parseSal(r[mesColMap[mi]]) : 0
@@ -1552,7 +1552,13 @@ function renderAumentos(){
   const yr  = document.getElementById('selYear').value;
   const años = yr === 'all' ? [2025,2026] : [parseInt(yr)].filter(y => AUMENTOS[y]);
 
-  const rows = años.flatMap(y => (AUMENTOS[y]||[]).map(r => ({...r, year:y})));
+  const rows = años.flatMap(y => (AUMENTOS[y]||[]).map(r => {
+    // Resolver departamento desde PERSONAS usando nombre del colaborador
+    const key = r.colaborador.toLowerCase().trim().replace(/\s+/g,' ');
+    const persona = PERSONAS[key];
+    const depto = (persona && persona.depto) ? persona.depto : 'N/D';
+    return {...r, year:y, depto};
+  }));
 
   if(!rows.length){
     ['augCount','augTotal','augProm','augMes'].forEach(id => {
