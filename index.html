@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -390,7 +391,50 @@ option{background:var(--bg3)}
     </div>
   </div>
 
-  <div class="sec">Alertas</div>
+  <div class="sec">Aumentos Salariales</div>
+  <div class="cg">
+    <!-- KPIs de aumentos -->
+    <div class="panel c3 fi">
+      <div class="kpi-lbl">Colaboradores con Aumento</div>
+      <div class="kpi-row"><span class="kpi-val" id="augCount">—</span></div>
+      <div class="kpi-ctx" id="augCtx">—</div>
+    </div>
+    <div class="panel c3 fi">
+      <div class="kpi-lbl">Monto Total de Aumentos</div>
+      <div class="kpi-row"><span class="kpi-val" id="augTotal">—</span></div>
+      <div class="kpi-ctx" id="augCtx2">—</div>
+    </div>
+    <div class="panel c3 fi">
+      <div class="kpi-lbl">Aumento Promedio</div>
+      <div class="kpi-row"><span class="kpi-val" id="augProm">—</span></div>
+      <div class="kpi-ctx">Por colaborador</div>
+    </div>
+    <div class="panel c3 fi">
+      <div class="kpi-lbl">Mes con Mayor Aumento</div>
+      <div class="kpi-row"><span class="kpi-val" id="augMes">—</span></div>
+      <div class="kpi-ctx" id="augMesCtx">—</div>
+    </div>
+  </div>
+  <div class="cg">
+    <div class="panel c8 fi">
+      <div class="ph"><div><div class="pt">Monto de Aumentos por Mes</div><div class="ps">Evolución mensual del total de aumentos</div></div><div class="pb" id="augBadge">—</div></div>
+      <div class="legend">
+        <span class="li"><span class="ld" style="background:var(--amber)"></span>2025</span>
+        <span class="li"><span class="ld" style="background:var(--teal)"></span>2026</span>
+      </div>
+      <div style="height:240px"><canvas id="cAugMes"></canvas></div>
+    </div>
+    <div class="panel c4 fi">
+      <div class="ph"><div><div class="pt">Motivo de Aumento</div><div class="ps">Según columna Comentario</div></div></div>
+      <div style="height:240px"><canvas id="cAugMotivo"></canvas></div>
+    </div>
+  </div>
+  <div class="cg">
+    <div class="panel c12 fi">
+      <div class="ph"><div><div class="pt">Aumentos por Departamento</div><div class="ps">Monto total acumulado de aumentos</div></div></div>
+      <div style="height:220px"><canvas id="cAugDepto"></canvas></div>
+    </div>
+  </div>
   <div class="cg">
     <div class="panel c12">
       <div class="ph">
@@ -436,9 +480,16 @@ const YEAR_URL = {
 // URL del sheet de Revenue por empresa
 const REVENUE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9sevoAAQSIQSOYswMM1C_6yxdubcQAx-atDd0N5uho65IA0FnvwFVeKbGhZX0blJOV7-LEt9AX9jl/pub?gid=717552885&single=true&output=csv';
 
+// URLs del sheet de Aumentos Salariales
+const AUMENTOS_URL = {
+  2025: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRb7qOTF0UTxkk00C5mpEC8LfGhuE8MBxr7A0mTnNf46sBdy0mKiMYDOEgM6JRXic1_y1ntO7DzpPj5/pub?gid=83497296&single=true&output=csv',
+  2026: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRb7qOTF0UTxkk00C5mpEC8LfGhuE8MBxr7A0mTnNf46sBdy0mKiMYDOEgM6JRXic1_y1ntO7DzpPj5/pub?gid=1775029576&single=true&output=csv',
+};
+
 // REVENUE[year][mes 0-11] = ingresos de Joystick ese mes
-// Populated by loadRevenue()
 let REVENUE = {};
+// AUMENTOS[year] = array de {colaborador, depto, motivo, meses:[0..11]}
+let AUMENTOS = {};
 const MOL   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MOF   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const PAL   = ['#2dd4bf','#38bdf8','#a78bfa','#f472b6','#22d3a0','#fbbf24','#f87171','#818cf8','#fb923c','#34d399'];
@@ -530,7 +581,68 @@ function parseSal(s){
 // ═══════════════════════════════════════════
 // LOAD ONE SHEET TAB
 // ═══════════════════════════════════════════
-async function fetchTab(year){
+// ═══════════════════════════════════════════
+// LOAD AUMENTOS SALARIALES
+// Estructura: PAIS, CONTRATO, EMPRESA, COLABORADOR, SAL_ANTERIOR, COMENTARIO, [fechas...]
+// Filtra solo Joystick
+// ═══════════════════════════════════════════
+async function loadAumentos(){
+  AUMENTOS = {};
+  for(const [yearStr, url] of Object.entries(AUMENTOS_URL)){
+    const year = parseInt(yearStr);
+    try{
+      const r = await fetch(url);
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      const csv = await r.text();
+      const rows = parseCSV(csv);
+      if(!rows.length) continue;
+
+      const headers = rows[0].map(h => h.toLowerCase().trim());
+
+      // Find column indices
+      const colEmpresa    = headers.findIndex(h => h.includes('empresa'));
+      const colColab      = headers.findIndex(h => h.includes('colaborador'));
+      const colDepto      = headers.findIndex(h => h.includes('depto') || h.includes('departamento'));
+      const colComentario = headers.findIndex(h => h.includes('comentario') || h.includes('motivo'));
+
+      // Find date columns: format d/m/yyyy or m/d/yyyy
+      // e.g. 1/1/2026, 2/1/2026...
+      const mesColMap = {}; // month 0-11 → col index
+      headers.forEach((h, idx) => {
+        const clean = h.replace(/\s/g,'');
+        // Match d/m/yyyy or m/d/yyyy
+        const m = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if(!m) return;
+        const y = parseInt(m[3]);
+        if(y !== year) return;
+        // Assume format m/d/yyyy (Jan=1, Feb=2...)
+        const mo = parseInt(m[1]) - 1; // 0-indexed
+        if(mo >= 0 && mo < 12) mesColMap[mo] = idx;
+      });
+
+      console.log(`[AUMENTOS ${year}] mesColMap:`, JSON.stringify(mesColMap));
+
+      // Filter Joystick rows
+      const joystickRows = rows.slice(1).filter(r =>
+        colEmpresa >= 0 && (r[colEmpresa]||'').toLowerCase().includes('joystick')
+      );
+
+      AUMENTOS[year] = joystickRows.map(r => ({
+        colaborador: (r[colColab]||'').trim(),
+        depto:       (r[colDepto]||'').trim(),
+        motivo:      (r[colComentario]||'').trim(),
+        meses: Array.from({length:12}, (_,mi) =>
+          mesColMap[mi] !== undefined ? parseSal(r[mesColMap[mi]]) : 0
+        ),
+      })).filter(r => r.colaborador && r.meses.some(v => v > 0));
+
+      console.log(`[AUMENTOS ${year}] ${AUMENTOS[year].length} colaboradores con aumento`);
+    } catch(e){
+      console.warn(`[AUMENTOS ${year}] Error:`, e);
+      AUMENTOS[year] = [];
+    }
+  }
+}
   const url = YEAR_URL[year];
   const r = await fetch(url);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -862,8 +974,8 @@ async function loadData(){
 
   ldBar(82); ldMsg('Construyendo personas únicas...');
   buildPersonas();
-  // Load revenue data in parallel
-  await loadRevenue();
+  // Load revenue and aumentos in parallel
+  await Promise.all([loadRevenue(), loadAumentos()]);
 
   const total=Object.keys(PERSONAS).length;
   if(!total){
@@ -1111,6 +1223,7 @@ function renderAll(){
   renderPlan();
   renderIA();
   renderFlujo();
+  renderAumentos();
   renderAlertas();
   animFI();
 }
@@ -1555,8 +1668,78 @@ function renderFlujo(){
   });
 }
 
-// Alertas
-function renderAlertas(){
+// ═══════════════════════════════════════════
+// AUMENTOS SALARIALES
+// ═══════════════════════════════════════════
+function renderAumentos(){
+  const yr  = document.getElementById('selYear').value;
+  const años = yr === 'all' ? [2025,2026] : [parseInt(yr)].filter(y => AUMENTOS[y]);
+
+  // Combinar datos de los años seleccionados
+  const rows = años.flatMap(y => (AUMENTOS[y]||[]).map(r => ({...r, year:y})));
+
+  if(!rows.length){
+    ['augCount','augTotal','augProm','augMes'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.textContent = 'Sin datos';
+    });
+    return;
+  }
+
+  // KPIs
+  const count    = rows.length;
+  const total    = rows.reduce((s,r) => s + r.meses.reduce((a,b)=>a+b,0), 0);
+  const prom     = count > 0 ? total/count : 0;
+  const porMes   = Array.from({length:12}, (_,mi) => rows.reduce((s,r)=>s+(r.meses[mi]||0),0));
+  const maxMesIdx= porMes.indexOf(Math.max(...porMes));
+
+  document.getElementById('augCount').textContent   = count;
+  document.getElementById('augTotal').textContent   = '₡'+fmtN(total);
+  document.getElementById('augProm').textContent    = '₡'+fmtN(prom);
+  document.getElementById('augMes').textContent     = MOL[maxMesIdx];
+  document.getElementById('augCtx').textContent     = `${años.join(' & ')}`;
+  document.getElementById('augCtx2').textContent    = `Acumulado ${años.join(' & ')}`;
+  document.getElementById('augMesCtx').textContent  = `₡${fmtN(porMes[maxMesIdx])}`;
+  document.getElementById('augBadge').textContent   = años.join(' & ');
+
+  // Gráfico por mes — una línea por año
+  const dsAug = [2025,2026].filter(y=>AUMENTOS[y]&&AUMENTOS[y].length).map(y => ({
+    label: String(y),
+    data:  Array.from({length:12}, (_,mi) =>
+      (AUMENTOS[y]||[]).reduce((s,r)=>s+(r.meses[mi]||0),0)
+    ),
+    borderColor: y===2026?'#2dd4bf':'#fbbf24',
+    bg: y===2026?'#2dd4bf18':'#fbbf2418',
+    fill:true, bw:2, pr:3
+  }));
+  if(CHARTS.augMes){CHARTS.augMes.destroy();delete CHARTS.augMes;}
+  CHARTS.augMes = mkLine('cAugMes', MOL, dsAug);
+
+  // Motivo — donut
+  const motivoC = {};
+  rows.forEach(r => {
+    const m = r.motivo || 'Sin especificar';
+    motivoC[m] = (motivoC[m]||0) + 1;
+  });
+  const motivoKeys = Object.keys(motivoC);
+  const motivoVals = motivoKeys.map(k=>motivoC[k]);
+  if(CHARTS.augMotivo){CHARTS.augMotivo.destroy();delete CHARTS.augMotivo;}
+  CHARTS.augMotivo = mkDonut('cAugMotivo', motivoKeys, motivoVals);
+
+  // Por departamento — barra horizontal
+  const deptoC = {};
+  rows.forEach(r => {
+    const d = r.depto || 'N/D';
+    deptoC[d] = (deptoC[d]||0) + r.meses.reduce((a,b)=>a+b,0);
+  });
+  const deptoSorted = Object.entries(deptoC).sort((a,b)=>b[1]-a[1]);
+  if(CHARTS.augDepto){CHARTS.augDepto.destroy();delete CHARTS.augDepto;}
+  CHARTS.augDepto = mkBar('cAugDepto',
+    deptoSorted.map(x=>x[0]),
+    deptoSorted.map(x=>Math.round(x[1]/1000)/1000), // en miles
+    PAL, true
+  );
+}
   const F=FILTERED;
   const activos=F.filter(p=>p.activo).length||1;
   const salidas=F.filter(p=>p.salidaDate).length;
