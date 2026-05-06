@@ -640,9 +640,8 @@ async function loadAumentos(){
       console.warn(`[AUMENTOS ${year}] Error:`, e);
       AUMENTOS[year] = [];
     }
+  }
 }
-
-async function fetchTab(year){
   const url = YEAR_URL[year];
   const r = await fetch(url);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
