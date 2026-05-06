@@ -11,7 +11,7 @@
   --bg:#090e1a;--bg2:#0f1624;--bg3:#161f30;--bg4:#1c2a3e;--bg5:#243048;
   --border:rgba(80,110,160,.15);--border2:rgba(80,110,160,.28);
   --text:#dde4f0;--text2:#7e92b4;--text3:#4a5a78;
-  --teal:#2dd4bf;--cyan:#38bdf8;--green:#22d3a0;--amber:#fbbf24;
+  --teal:#2dd4bf;--cyan:#38bdf8;--green:#a5f3fc;--amber:#fbbf24;
   --red:#f87171;--purple:#a78bfa;--pink:#f472b6;
   --font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
   --r:12px;--r2:8px;
@@ -371,7 +371,7 @@ option{background:var(--bg3)}
         <span class="li"><span class="ld" style="background:#4a6080"></span>2022</span>
         <span class="li"><span class="ld" style="background:#5a80b0"></span>2023</span>
         <span class="li"><span class="ld" style="background:#38bdf8"></span>2024</span>
-        <span class="li"><span class="ld" style="background:#22d3a0"></span>2025</span>
+        <span class="li"><span class="ld" style="background:#a5f3fc"></span>2025</span>
         <span class="li"><span class="ld" style="background:#2dd4bf"></span>2026</span>
       </div>
       <div style="height:230px"><canvas id="cIA"></canvas></div>
@@ -485,8 +485,8 @@ let REVENUE = {};
 let AUMENTOS = {};
 const MOL   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MOF   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const PAL   = ['#2dd4bf','#38bdf8','#a78bfa','#f472b6','#22d3a0','#fbbf24','#f87171','#818cf8','#fb923c','#34d399'];
-const YCOL  = {2022:'#4a6080',2023:'#5a80b0',2024:'#38bdf8',2025:'#22d3a0',2026:'#2dd4bf'};
+const PAL   = ['#2dd4bf','#38bdf8','#a78bfa','#f472b6','#a5f3fc','#fbbf24','#f87171','#818cf8','#fb923c','#34d399'];
+const YCOL  = {2022:'#4a6080',2023:'#5a80b0',2024:'#38bdf8',2025:'#a5f3fc',2026:'#2dd4bf'};
 
 let RAW_BY_YEAR = {}; 
 let PERSONAS    = {}; 
@@ -1292,7 +1292,7 @@ function renderTend(){
     const salData=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===maxY&&p.salidaDate.m===m).length);
     CHARTS.tend  = mkLine('cTend', MOL, dsHC);
     CHARTS.tend2 = mkLine('cTend2', MOL, [
-      {label:'Ingresos',data:ingData,borderColor:'#22d3a0',bg:'#22d3a018',fill:true},
+      {label:'Ingresos',data:ingData,borderColor:'#a5f3fc',bg:'#a5f3fc18',fill:true},
       {label:'Salidas', data:salData,borderColor:'#f87171',bg:'#f8717118',fill:true},
     ]);
     document.getElementById('badgeTend').textContent='Todos los años';
@@ -1307,7 +1307,7 @@ function renderTend(){
       {label:'Headcount',data:hcData,borderColor:'#2dd4bf',bg:'#2dd4bf18',fill:true},
     ]);
     CHARTS.tend2 = mkLine('cTend2', MOL, [
-      {label:'Ingresos',data:ingData,borderColor:'#22d3a0',bg:'#22d3a018',fill:true},
+      {label:'Ingresos',data:ingData,borderColor:'#a5f3fc',bg:'#a5f3fc18',fill:true},
       {label:'Salidas', data:salData,borderColor:'#f87171',bg:'#f8717118',fill:true},
     ]);
     document.getElementById('badgeTend').textContent=label;
@@ -1430,11 +1430,11 @@ function renderRot(){
   const rates=hcData.map((h,i)=>h>0?+(salData[i]/h*100).toFixed(2):0);
   const bgc=rates.map((r,i)=>{
     const ip=meses===null||meses.includes(i);
-    return (r>5?'#f87171':r>3?'#fbbf24':'#22d3a0')+(ip?'cc':'33');
+    return (r>5?'#f87171':r>3?'#fbbf24':'#a5f3fc')+(ip?'cc':'33');
   });
   const bdc=rates.map((r,i)=>{
     const ip=meses===null||meses.includes(i);
-    const b=r>5?'#f87171':r>3?'#fbbf24':'#22d3a0';
+    const b=r>5?'#f87171':r>3?'#fbbf24':'#a5f3fc';
     return ip?b:b+'55';
   });
   CHARTS.rot=new Chart(document.getElementById('cRot'),{
@@ -1540,7 +1540,7 @@ function renderFlujo(){
   CHARTS.flujo=new Chart(document.getElementById('cFlujo'),{
     type:'bar',
     data:{labels:MOL,datasets:[
-      {type:'bar',label:'Ingresos',data:ing,backgroundColor:'#22d3a0aa',borderColor:'#22d3a0',borderWidth:1,borderRadius:4,stack:'s'},
+      {type:'bar',label:'Ingresos',data:ing,backgroundColor:'#a5f3fcaa',borderColor:'#a5f3fc',borderWidth:1,borderRadius:4,stack:'s'},
       {type:'bar',label:'Salidas',data:sal.map(v=>-v),backgroundColor:'#f87171aa',borderColor:'#f87171',borderWidth:1,borderRadius:4,stack:'s'},
       {type:'line',label:'Neto',data:neto,borderColor:'#fbbf24',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.4}
     ]},
@@ -1629,17 +1629,27 @@ function renderAumentos(){
   const deptoSorted = Object.entries(deptoAumento)
     .map(([d, aum]) => ({
       d,
-      pct: deptoPlanilla[d] ? +(aum / deptoPlanilla[d] * 100).toFixed(2) : 0
+      pct: deptoPlanilla[d] ? +(aum / deptoPlanilla[d] * 100).toFixed(1) : 0
     }))
     .filter(x => x.pct > 0)
     .sort((a,b) => b.pct - a.pct);
 
   if(CHARTS.augDepto){CHARTS.augDepto.destroy();delete CHARTS.augDepto;}
-  CHARTS.augDepto = mkBar('cAugDepto',
-    deptoSorted.map(x=>x.d),
-    deptoSorted.map(x=>x.pct),
-    PAL, true
-  );
+  const ctxAD = document.getElementById('cAugDepto');
+  if(ctxAD){
+    const bgc = deptoSorted.map((_,i)=>PAL[i%PAL.length]+'cc');
+    const bdc = deptoSorted.map((_,i)=>PAL[i%PAL.length]);
+    CHARTS.augDepto = new Chart(ctxAD,{
+      type:'bar',
+      data:{labels:deptoSorted.map(x=>x.d),datasets:[{
+        data:deptoSorted.map(x=>x.pct),
+        backgroundColor:bgc,borderColor:bdc,borderWidth:1,borderRadius:4,barPercentage:.72
+      }]},
+      options:{...BOPTS(),indexAxis:'y',plugins:{...BOPTS().plugins,
+        tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.raw}% de la planilla`}}
+      }}
+    });
+  }
 
   // Update chart subtitle
   const panel = document.querySelector('#cAugDepto')?.closest('.panel');
