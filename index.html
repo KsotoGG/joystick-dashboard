@@ -425,7 +425,7 @@ option{background:var(--bg3)}
 // ═══════════════════════════════════════════
 const YEARS = [2022,2023,2024,2025,2026];
 
-// URLs exactas publicadas para cada pestaña
+// URLs exactas publicadas para cada pestaña de colaboradores
 const YEAR_URL = {
   2022: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?gid=1494200584&single=true&output=csv',
   2023: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?gid=1192022268&single=true&output=csv',
@@ -433,6 +433,13 @@ const YEAR_URL = {
   2025: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?gid=594954360&single=true&output=csv',
   2026: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQA3bJhWhUMJTZF9wG33_BoP7_5U1r-Yg98CFzu17SwuyEVzD4lN3-IpkMeyh7uw2YuKJOSdO-y9CVT/pub?gid=1273792649&single=true&output=csv',
 };
+
+// URL del sheet de Revenue por empresa
+const REVENUE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9sevoAAQSIQSOYswMM1C_6yxdubcQAx-atDd0N5uho65IA0FnvwFVeKbGhZX0blJOV7-LEt9AX9jl/pub?gid=717552885&single=true&output=csv';
+
+// REVENUE[year][mes 0-11] = ingresos de Joystick ese mes
+// Populated by loadRevenue()
+let REVENUE = {};
 const MOL   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MOF   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const PAL   = ['#2dd4bf','#38bdf8','#a78bfa','#f472b6','#22d3a0','#fbbf24','#f87171','#818cf8','#fb923c','#34d399'];
@@ -529,6 +536,53 @@ async function fetchTab(year){
   const r = await fetch(url);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.text();
+}
+
+// ═══════════════════════════════════════════
+// LOAD REVENUE DATA
+// Reads revenue sheet, finds Joystick row
+// Columns: Empresa, Jan-24, Feb-24 ... Dec-26
+// ═══════════════════════════════════════════
+async function loadRevenue(){
+  try{
+    const r = await fetch(REVENUE_URL);
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    const csv = await r.text();
+    const rows = parseCSV(csv);
+    if(!rows.length) return;
+
+    const headers = rows[0].map(h => h.toLowerCase().trim());
+
+    // Find Joystick row (case insensitive)
+    const joystickRow = rows.slice(1).find(r =>
+      (r[0]||'').toLowerCase().includes('joystick')
+    );
+    if(!joystickRow){ console.warn('[REVENUE] Joystick row not found'); return; }
+
+    // Map header names to year/month
+    // Format: Jan-24, Feb-24 ... Dec-26
+    const MONTH_MAP = {
+      jan:0,feb:1,mar:2,apr:3,may:4,jun:5,
+      jul:6,aug:7,sep:8,oct:9,nov:10,dec:11
+    };
+
+    REVENUE = {};
+    headers.forEach((h, idx) => {
+      const m = h.replace(/\s/g,'').match(/^([a-z]+)-(\d{2})$/);
+      if(!m) return;
+      const mo = MONTH_MAP[m[1]];
+      const yr = 2000 + parseInt(m[2]);
+      if(mo === undefined || !YEARS.includes(yr)) return;
+      if(!REVENUE[yr]) REVENUE[yr] = {};
+      REVENUE[yr][mo] = parseSal(joystickRow[idx]);
+    });
+
+    console.log('[REVENUE] Loaded:', JSON.stringify(
+      Object.fromEntries(Object.entries(REVENUE).map(([y,ms])=>[y, Object.values(ms).reduce((a,b)=>a+b,0)]))
+    ));
+  } catch(e){
+    console.warn('[REVENUE] Error loading:', e);
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -809,6 +863,8 @@ async function loadData(){
 
   ldBar(82); ldMsg('Construyendo personas únicas...');
   buildPersonas();
+  // Load revenue data in parallel
+  await loadRevenue();
 
   const total=Object.keys(PERSONAS).length;
   if(!total){
@@ -1135,6 +1191,29 @@ function renderKPIs(){
 
   console.log(`[KPI] Año:${yr} FILTERED:${F.length} Activos:${activos}(${activosMes}) Salidas:${salidas}`);
 
+  // Revenue per Employee (RPE) = Revenue período / HC activo
+  let revTotal = 0;
+  if(yr === 'all'){
+    revTotal = YEARS.reduce((s,y) => s+(REVENUE[y]?Object.values(REVENUE[y]).reduce((a,b)=>a+b,0):0), 0);
+  } else {
+    const y = parseInt(yr);
+    const mp = meses || Array.from({length:12},(_,i)=>i);
+    revTotal = mp.reduce((s,mi) => s+(REVENUE[y]?(REVENUE[y][mi]||0):0), 0);
+  }
+  const rpeVal = activos > 0 ? revTotal / activos : 0;
+
+  // RPE growth vs año anterior
+  let rpeGrowth = null;
+  if(yr !== 'all' && REVENUE[parseInt(yr)-1]){
+    const prevYr2 = parseInt(yr)-1;
+    const prevRev = Object.values(REVENUE[prevYr2]).reduce((a,b)=>a+b,0);
+    const prevHCn = hcCierre(
+      Object.values(PERSONAS).filter(p=>p.sal[prevYr2]&&p.sal[prevYr2].some(v=>v>0)), prevYr2
+    ).n || 1;
+    const prevRPE = prevRev / prevHCn;
+    if(prevRPE > 0) rpeGrowth = +((rpeVal - prevRPE)/prevRPE*100).toFixed(1);
+  }
+
   const kpis=[
     {l:'Headcount Activo',v:activos.toLocaleString(),
      b:chgAct?(+chgAct>=0?'↑':'↓')+Math.abs(chgAct)+'%':null,bt:chgAct?(+chgAct>=0?'up':'dn'):'nt',
@@ -1148,6 +1227,11 @@ function renderKPIs(){
      bt:rotTasa>5?'dn':rotTasa>3?'nt':'up',
      ctx:`${salidas} sal. / prom. ${Math.round(hcPromedio)} · Meta <5%`,
      c:rotTasa>5?'t-red':rotTasa>3?'t-amber':'t-teal',spark:false},
+    {l:'Revenue per Employee',v:revTotal>0?'₡'+fmtN(rpeVal):'Sin datos',
+     b:rpeGrowth!==null?(rpeGrowth>=0?'↑':'↓')+Math.abs(rpeGrowth)+'%':null,
+     bt:rpeGrowth!==null?(rpeGrowth>=0?'up':'dn'):'nt',
+     ctx:revTotal>0?`Rev: ₡${fmtN(revTotal)} / ${activos} activos`:'Conecta el sheet de revenue',
+     c:'t-cyan',spark:false},
   ];
 
   document.getElementById('kpiGrid').innerHTML=kpis.map((k,i)=>`
