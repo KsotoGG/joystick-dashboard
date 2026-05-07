@@ -911,7 +911,7 @@ async function loadData(){
   ldBar(94); ldMsg('Renderizando...');
 
   SEL_YEARS=[2026];
-  syncYearPill('2026');
+  syncYearPills();
   applyFilters();
 
   ldBar(100);
@@ -1095,7 +1095,7 @@ function applyFilters(){
 
 function resetFilters(){
   SEL_YEARS=[2026];
-  syncYearPill('2026');
+  syncYearPills();
   ['selDepto','selContrato','selPais','selProv'].forEach(id=>document.getElementById(id).value='all');
   document.getElementById('selGen').value='all';
   MODO='todo'; SEL_MESES=null;
