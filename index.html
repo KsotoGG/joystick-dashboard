@@ -358,7 +358,7 @@ option{background:var(--bg3)}
 
   <div class="cg">
     <div class="panel c12">
-      <div class="ph"><div><div class="pt">Heatmap Salidas · Depto × Mes</div><div class="ps">Verde=bajo · Ámbar=medio · Rojo=alto</div></div></div>
+      <div class="ph"><div><div class="pt">Heatmap Salidas · Depto × Mes</div><div class="ps">Verde=bajo · Ámbar=medio · Rojo=alto</div></div><div class="pb" id="badgeHm">—</div></div>
       <div id="hmWrap"></div>
     </div>
   </div>
@@ -1511,7 +1511,7 @@ function renderCostDepto(){
     options:{...BOPTS(),
       plugins:{...BOPTS().plugins,
         legend:{display:true,position:'top',align:'end',
-          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8}}
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,usePointStyle:false,generateLabels:chart=>chart.data.datasets.map((ds,i)=>({text:ds.label,fontColor:'#dde4f0',fillStyle:ds.borderColor||ds.backgroundColor,strokeStyle:'transparent',lineWidth:0,hidden:false,datasetIndex:i}))}}
       },
       scales:{
         x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
@@ -1653,7 +1653,7 @@ function renderRot(){
     options:{...BOPTS(),
       plugins:{...BOPTS().plugins,
         legend:{display:SEL_YEARS.length>1,position:'top',align:'end',
-          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8}}
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,usePointStyle:false,generateLabels:chart=>chart.data.datasets.map((ds,i)=>({text:ds.label,fontColor:'#dde4f0',fillStyle:ds.borderColor||ds.backgroundColor,strokeStyle:'transparent',lineWidth:0,hidden:false,datasetIndex:i}))}}
       },
       scales:{
         x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
@@ -1684,6 +1684,7 @@ function renderDest(){
 function renderHM(){
   const F=FILTERED;
   const lastY=Math.max(...SEL_YEARS);
+  const label=SEL_YEARS.length===1?String(SEL_YEARS[0]):SEL_YEARS.join(' + ');
   const deptos=[...new Set(F.map(p=>p.depto).filter(Boolean))].sort();
   const wrap=document.getElementById('hmWrap');
   if(!deptos.length){wrap.innerHTML='<div class="empty">Sin datos de departamento</div>';return;}
@@ -1691,14 +1692,22 @@ function renderHM(){
     Array.from({length:12},(_,m)=>F.filter(p=>p.depto===d&&p.salidaDate&&SEL_YEARS.includes(p.salidaDate.y)&&p.salidaDate.m===m).length)
   );
   const maxV=Math.max(...matrix.flat(),1);
+
+  // Badge de años igual que los otros gráficos
+  const phEl=document.getElementById('badgeHm');
+  if(phEl) phEl.textContent=label;
+
   wrap.innerHTML=`<div class="hm-wrap">
     <div class="hm-ylabels">${deptos.map(d=>`<div class="hm-ylabel">${d}</div>`).join('')}</div>
     <div class="hm-body">
       <div class="hm-xlabels">${MOL.map(m=>`<div class="hm-xlabel">${m}</div>`).join('')}</div>
       ${matrix.map((row,di)=>`<div class="hm-row">${row.map((v,mi)=>{
         const t=v/maxV;
-        const bg=t>.6?`rgba(248,113,113,${.12+t*.8})`:t>.3?`rgba(251,191,36,${.12+t*.7})`:`rgba(45,212,191,${.04+t*.5})`;
-        return `<div class="hm-cell" style="background:${bg}" title="${deptos[di]}·${MOF[mi]}:${v}">${v||''}</div>`;
+        const bg=t>.6?`rgba(248,113,113,${.15+t*.85})`:t>.3?`rgba(251,191,36,${.15+t*.75})`:`rgba(74,222,128,${.08+t*.55})`;
+        // Texto oscuro si celda es muy brillante (t alto), claro si es tenue
+        const textColor=t>.5?'rgba(5,13,26,0.85)':'rgba(221,228,240,0.75)';
+        const fontW=v>0?'bold':'normal';
+        return `<div class="hm-cell" style="background:${bg};color:${textColor};font-weight:${fontW}" title="${deptos[di]}·${MOF[mi]}:${v}">${v||''}</div>`;
       }).join('')}</div>`).join('')}
     </div>
   </div>`;
@@ -1727,7 +1736,7 @@ function renderPlan(){
     options:{...BOPTS(),
       plugins:{...BOPTS().plugins,
         legend:{display:SEL_YEARS.length>1,position:'top',align:'end',
-          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8}}
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,usePointStyle:false,generateLabels:chart=>chart.data.datasets.map((ds,i)=>({text:ds.label,fontColor:'#dde4f0',fillStyle:ds.borderColor||ds.backgroundColor,strokeStyle:'transparent',lineWidth:0,hidden:false,datasetIndex:i}))}}
       },
       scales:{
         x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
@@ -1783,7 +1792,7 @@ function renderFlujo(){
     options:{...BOPTS(),
       plugins:{...BOPTS().plugins,
         legend:{display:true,position:'top',align:'end',
-          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8}},
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,usePointStyle:false,generateLabels:chart=>chart.data.datasets.map((ds,i)=>({text:ds.label,fontColor:'#dde4f0',fillStyle:ds.borderColor||ds.backgroundColor,strokeStyle:'transparent',lineWidth:0,hidden:false,datasetIndex:i}))}},
         tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${Math.abs(ctx.raw)}`}}
       }
     }
