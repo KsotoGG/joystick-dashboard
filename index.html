@@ -284,6 +284,13 @@ option{background:var(--bg3)}
       <div class="ph"><div><div class="pt">Por Departamento</div><div class="ps">Headcount activo</div></div></div>
       <div style="height:260px"><canvas id="cDepto"></canvas></div>
     </div>
+    <div class="panel c8">
+      <div class="ph">
+        <div><div class="pt">Costo por Departamento</div><div class="ps">Planilla mensual desglosada por área</div></div>
+        <div class="pb" id="badgeCostDepto">—</div>
+      </div>
+      <div style="height:260px"><canvas id="cCostDepto"></canvas></div>
+    </div>
   </div>
 
   <div class="sec">Distribución & Demografía</div>
@@ -1194,6 +1201,7 @@ function renderAll(){
   renderKPIs();
   renderTend();
   renderDepto();
+  renderCostDepto();
   renderGen(); renderCont(); renderEst(); renderPaisChart();
   renderTal(ACT_TAL);
   renderProg('progAcad','grado');  // kept for compat, not displayed
@@ -1457,6 +1465,62 @@ function renderDepto(){
   });
   const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   CHARTS.depto=mkBar('cDepto',sorted.map(x=>x[0]),sorted.map(x=>x[1]),PAL,true);
+}
+
+function renderCostDepto(){
+  const F=FILTERED;
+  const lastY=Math.max(...SEL_YEARS);
+  const meses=getMeses();
+  const mp=meses||Array.from({length:12},(_,i)=>i);
+
+  // Obtener deptos únicos con datos
+  const deptos=[...new Set(F.map(p=>p.depto).filter(Boolean))].sort();
+  if(!deptos.length){ emptyChart('cCostDepto'); return; }
+
+  // Para cada depto, calcular planilla mensual
+  const datasets=deptos.map((d,di)=>{
+    const color=PAL[di%PAL.length];
+    return {
+      label:d,
+      data:Array.from({length:12},(_,mi)=>
+        F.filter(p=>p.depto===d).reduce((s,p)=>s+(p.sal[lastY]?p.sal[lastY][mi]||0:0),0)
+      ),
+      borderColor:color,
+      backgroundColor:color+'55',
+      fill:false,tension:.4,borderWidth:1.8,
+      pointRadius:2,pointBackgroundColor:color
+    };
+  });
+
+  const totalDepto={};
+  deptos.forEach(d=>{
+    totalDepto[d]=mp.reduce((s,mi)=>
+      s+F.filter(p=>p.depto===d).reduce((ps,p)=>ps+(p.sal[lastY]?p.sal[lastY][mi]||0:0),0)
+    ,0);
+  });
+  const topDepto=Object.entries(totalDepto).sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('badgeCostDepto').textContent=
+    topDepto ? `Mayor: ${topDepto[0]} ₡${fmtN(topDepto[1])}` : String(lastY);
+
+  if(CHARTS.costDepto){CHARTS.costDepto.destroy();delete CHARTS.costDepto;}
+  const ctx=document.getElementById('cCostDepto'); if(!ctx) return;
+  CHARTS.costDepto=new Chart(ctx,{
+    type:'line',
+    data:{labels:MOL,datasets},
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,
+        legend:{display:true,position:'top',align:'end',
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8}}
+      },
+      scales:{
+        x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        y:{beginAtZero:true,
+          ticks:{color:'#4a5a78',font:{size:9},callback:v=>'₡'+fmtN(v)},
+          grid:{color:'#161f30'},border:{color:'transparent'}}
+      }
+    }
+  });
 }
 
 function renderGen(){
