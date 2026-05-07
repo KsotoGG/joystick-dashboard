@@ -1215,98 +1215,84 @@ function renderAll(){
 
 function renderKPIs(){
   const F=FILTERED;
-  const yr=getYr();
   const meses=getMeses();
-  const isAllYears=SEL_YEARS.length===YEARS.length;
+  const isMulti = SEL_YEARS.length > 1;
+  // Use last (most recent) selected year for headcount
+  const lastY = Math.max(...SEL_YEARS);
+  const rowsLastY = F.filter(p=>p.sal[lastY]);
 
-  let activos,activosMes,salidas,ingresos,planTotal,planMes;
-  if(isAllYears){
-    const maxY=Math.max(...YEARS.filter(y=>F.some(p=>p.sal[y])));
-    const rowsMaxY=F.filter(p=>p.sal[maxY]);
-    
-    const c=hcCierre(rowsMaxY,maxY);
-    activos=c.n; activosMes=c.m>=0?`Cierre ${MOL[c.m]}-${maxY}`:'Todos';
-    
-    salidas=F.filter(p=>p.salidaDate).length;
-    ingresos=F.filter(p=>p.ingresoDate).length;
-    planTotal=F.reduce((s,p)=>s+YEARS.reduce((ys,y)=>ys+(p.sal[y]||[]).reduce((a,b)=>a+b,0),0),0);
-    planMes=planTotal/(YEARS.length*12)||0;
+  let activos, activosMes, salidas, ingresos, planTotal, planMes;
+
+  // Headcount activo = cierre del último año seleccionado
+  if(meses&&meses.length>0){
+    const lm=meses[meses.length-1];
+    activos=hc(rowsLastY,lastY,lm); activosMes=`${MOL[lm]}-${lastY}`;
   } else {
-    const y=parseInt(yr);
-    const rowsY=F.filter(p=>p.sal[y]);
-
-    if(meses&&meses.length>0){
-      
-      const lastM=meses[meses.length-1];
-      activos=hc(rowsY,y,lastM);
-      activosMes=`${MOL[lastM]}-${yr}`;
-      
-      salidas=F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&meses.includes(p.salidaDate.m)).length;
-      ingresos=F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&meses.includes(p.ingresoDate.m)).length;
-    } else {
-      
-      const c=hcCierre(rowsY,y);
-      activos=c.n; activosMes=c.m>=0?`Cierre ${MOL[c.m]}-${yr}`:yr;
-      
-      salidas=F.filter(p=>p.salidaDate&&p.salidaDate.y===y).length;
-      ingresos=F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y).length;
-    }
-
-    const mp=meses||Array.from({length:12},(_,i)=>i);
-    planTotal=rowsY.reduce((s,p)=>s+(p.sal[y]||[]).reduce((a,v,mi)=>a+(mp.includes(mi)?v:0),0),0);
-    planMes=mp.length>0?planTotal/mp.length:0;
+    const c=hcCierre(rowsLastY,lastY);
+    activos=c.n; activosMes=c.m>=0?`Cierre ${MOL[c.m]}-${lastY}`:String(lastY);
   }
+
+  // Salidas e ingresos = acumulado de TODOS los años seleccionados
+  salidas = F.filter(p=>{
+    if(!p.salidaDate) return false;
+    if(!SEL_YEARS.includes(p.salidaDate.y)) return false;
+    if(meses&&!meses.includes(p.salidaDate.m)) return false;
+    return true;
+  }).length;
+
+  ingresos = F.filter(p=>{
+    if(!p.ingresoDate) return false;
+    if(!SEL_YEARS.includes(p.ingresoDate.y)) return false;
+    if(meses&&!meses.includes(p.ingresoDate.m)) return false;
+    return true;
+  }).length;
+
+  // Planilla = acumulado de todos los años seleccionados
+  const mp = meses||Array.from({length:12},(_,i)=>i);
+  planTotal = F.reduce((s,p)=>s+SEL_YEARS.reduce((ys,y)=>{
+    if(!p.sal[y]) return ys;
+    return ys+mp.reduce((ms,mi)=>ms+(p.sal[y][mi]||0),0);
+  },0),0);
+  planMes = mp.length>0&&SEL_YEARS.length>0 ? planTotal/(mp.length*SEL_YEARS.length) : 0;
 
   const total=F.length||1;
   const mujeres=F.filter(p=>p.genero==='F').length;
   const pctF=Math.round(mujeres/total*100);
 
-  let hcInicio = activos;
-  if(yr !== 'all'){
-    const y = parseInt(yr);
-    const mp = meses || Array.from({length:12},(_,i)=>i);
-    
-    for(const mi of mp){
-      const n = hc(F, y, mi);
-      if(n > 0){ hcInicio = n; break; }
-    }
+  // Rotación basada en último año
+  const hcInicio=activos; // simplificado
+  const hcPromedio=(hcInicio+activos)/2||1;
+  const rotTasa=+(salidas/hcPromedio*100).toFixed(1);
+
+  // Comparación año anterior al último año
+  const prevY=lastY-1;
+  const prevF=Object.values(PERSONAS).filter(p=>p.sal[prevY]&&p.sal[prevY].some(v=>v>0));
+  const prevC=hcCierre(prevF,prevY);
+  const prevAct=prevC.n;
+  const chgAct=prevAct?((activos-prevAct)/prevAct*100).toFixed(1):null;
+
+  // RPE
+  const revTotal=SEL_YEARS.reduce((s,y)=>{
+    const mp2=meses||Array.from({length:12},(_,i)=>i);
+    return s+mp2.reduce((ms,mi)=>ms+(REVENUE[y]?(REVENUE[y][mi]||0):0),0);
+  },0);
+  const rpeVal=activos>0?revTotal/activos:0;
+  let rpeGrowth=null;
+  if(SEL_YEARS.length===1&&REVENUE[prevY]){
+    const prevRev=Object.values(REVENUE[prevY]).reduce((a,b)=>a+b,0);
+    const prevRPE=prevRev/(prevAct||1);
+    if(prevRPE>0) rpeGrowth=+((rpeVal-prevRPE)/prevRPE*100).toFixed(1);
   }
-  const hcPromedio = (hcInicio + activos) / 2 || 1;
-  const rotTasa = +(salidas / hcPromedio * 100).toFixed(1);
 
-  const prevY=yr==='all'?null:String(+yr-1);
-  const prevF=prevY?Object.values(PERSONAS).filter(p=>p.sal[parseInt(prevY)]&&p.sal[parseInt(prevY)].some(v=>v>0)):[];
-  const prevC=prevY?hcCierre(prevF,parseInt(prevY)):{n:0};
-  const chgAct=prevC.n?((activos-prevC.n)/prevC.n*100).toFixed(1):null;
+  const ctx = isMulti ? `${SEL_YEARS.join('+')} · Activos: cierre ${lastY}` : activosMes;
 
-  console.log(`[KPI] Año:${yr} FILTERED:${F.length} Activos:${activos}(${activosMes}) Salidas:${salidas}`);
-
-  let revTotal = 0;
-  if(yr === 'all'){
-    revTotal = YEARS.reduce((s,y) => s+(REVENUE[y]?Object.values(REVENUE[y]).reduce((a,b)=>a+b,0):0), 0);
-  } else {
-    const y = parseInt(yr);
-    const mp = meses || Array.from({length:12},(_,i)=>i);
-    revTotal = mp.reduce((s,mi) => s+(REVENUE[y]?(REVENUE[y][mi]||0):0), 0);
-  }
-  const rpeVal = activos > 0 ? revTotal / activos : 0;
-
-  let rpeGrowth = null;
-  if(yr !== 'all' && REVENUE[parseInt(yr)-1]){
-    const prevYr2 = parseInt(yr)-1;
-    const prevRev = Object.values(REVENUE[prevYr2]).reduce((a,b)=>a+b,0);
-    const prevHCn = hcCierre(
-      Object.values(PERSONAS).filter(p=>p.sal[prevYr2]&&p.sal[prevYr2].some(v=>v>0)), prevYr2
-    ).n || 1;
-    const prevRPE = prevRev / prevHCn;
-    if(prevRPE > 0) rpeGrowth = +((rpeVal - prevRPE)/prevRPE*100).toFixed(1);
-  }
+  console.log(`[KPI] Años:${SEL_YEARS} Activos:${activos}(${activosMes}) Sal:${salidas} Ing:${ingresos}`);
 
   const kpis=[
     {l:'Headcount Activo',v:activos.toLocaleString(),
      b:chgAct?(+chgAct>=0?'↑':'↓')+Math.abs(chgAct)+'%':null,bt:chgAct?(+chgAct>=0?'up':'dn'):'nt',
-     ctx:activosMes+(prevC.n?` · vs ${prevC.n} año ant.`:''),c:'t-teal',spark:true},
-    {l:'Ingresos del Período',v:ingresos,b:null,bt:'nt',ctx:getPeriodoLabel(),c:'t-cyan',spark:false},
+     ctx:ctx+(prevAct?` · vs ${prevAct} año ant.`:''),c:'t-teal',spark:true},
+    {l:'Ingresos del Período',v:ingresos,b:null,bt:'nt',ctx:isMulti?SEL_YEARS.join('+'):getPeriodoLabel(),c:'t-cyan',spark:false},
     {l:'Salidas del Período',v:salidas,b:rotTasa>5?'⚠ Alta':'✓ OK',bt:rotTasa>5?'dn':'up',
      ctx:`Tasa: ${rotTasa}% · Meta <5%`,c:rotTasa>5?'t-red':'t-green',spark:false},
     {l:'Género F',v:pctF+'%',b:`${mujeres} mujeres`,bt:'nt',ctx:'Proporción femenina',c:'t-purple',spark:false},
@@ -1321,7 +1307,6 @@ function renderKPIs(){
      ctx:revTotal>0?`Rev: ₡${fmtN(revTotal)} / ${activos} activos`:'Conecta el sheet de revenue',
      c:'t-cyan',spark:false},
   ];
-
   document.getElementById('kpiGrid').innerHTML=kpis.map((k,i)=>`
     <div class="kpi ${k.c} fi" style="transition-delay:${i*45}ms">
       <div class="kpi-lbl">${k.l}</div>
@@ -1336,8 +1321,7 @@ function renderKPIs(){
   kpis.forEach((k,i)=>{
     if(!k.spark) return;
     const ctx=document.getElementById('spk'+i); if(!ctx) return;
-    const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
-    const data=Array.from({length:12},(_,mi)=>hc(F,y,mi));
+    const data=Array.from({length:12},(_,mi)=>hc(F,lastY,mi));
     CHARTS['spk'+i]=new Chart(ctx,{
       type:'line',
       data:{labels:MOL,datasets:[{data,borderColor:'#a5f3fc',backgroundColor:'#a5f3fc18',fill:true,tension:.4,borderWidth:1.5,pointRadius:0}]},
@@ -1355,54 +1339,38 @@ function fmtN(n){
 
 function renderTend(){
   const F=FILTERED;
-  const yr=getYr();
-  const label=getPeriodoLabel();
-
-  if(yr==='all'){
-    
-    const dsHC=YEARS.map(y=>({
-      label:String(y),
-      data:Array.from({length:12},(_,m)=>hc(F,y,m)),
-      borderColor:YCOL[y],bg:'transparent',fill:false,bw:y===2026?2.5:1.5,pr:y===2026?3:2
-    }));
-    
-    const maxY=Math.max(...YEARS.filter(y=>F.some(p=>p.sal[y])));
-    const ingData=Array.from({length:12},(_,m)=>F.filter(p=>p.ingresoDate&&p.ingresoDate.y===maxY&&p.ingresoDate.m===m).length);
-    const salData=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===maxY&&p.salidaDate.m===m).length);
-    CHARTS.tend  = mkLine('cTend', MOL, dsHC);
-    CHARTS.tend2 = mkLine('cTend2', MOL, [
-      {label:'Ingresos',data:ingData,borderColor:'#a5f3fc',bg:'#a5f3fc18',fill:true},
-      {label:'Salidas', data:salData,borderColor:'#f87171',bg:'#f8717118',fill:true},
-    ]);
-    document.getElementById('badgeTend').textContent='Todos los años';
-    document.getElementById('badgeTend2').textContent=`${maxY}`;
-  } else {
-    const y=parseInt(yr);
-    const hcData =Array.from({length:12},(_,m)=>hc(F,y,m));
-    const ingData=Array.from({length:12},(_,m)=>F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&p.ingresoDate.m===m).length);
-    const salData=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length);
-
-    CHARTS.tend = mkLine('cTend', MOL, [
-      {label:'Headcount',data:hcData,borderColor:'#a5f3fc',bg:'#a5f3fc18',fill:true},
-    ]);
-    CHARTS.tend2 = mkLine('cTend2', MOL, [
-      {label:'Ingresos',data:ingData,borderColor:'#a5f3fc',bg:'#a5f3fc18',fill:true},
-      {label:'Salidas', data:salData,borderColor:'#f87171',bg:'#f8717118',fill:true},
-    ]);
-    document.getElementById('badgeTend').textContent=label;
-    document.getElementById('badgeTend2').textContent=label;
-  }
+  const label=SEL_YEARS.length===1?getPeriodoLabel():SEL_YEARS.join(' + ');
+  // HC: una línea por año seleccionado
+  const dsHC=SEL_YEARS.map(y=>({
+    label:String(y),
+    data:Array.from({length:12},(_,m)=>hc(F,y,m)),
+    borderColor:YCOL[y],bg:'transparent',fill:false,
+    bw:y===Math.max(...SEL_YEARS)?2.5:1.5,pr:y===Math.max(...SEL_YEARS)?3:2
+  }));
+  CHARTS.tend=mkLine('cTend',MOL,dsHC);
+  // Ingresos/Salidas: una línea por año seleccionado
+  const dsIng=SEL_YEARS.map(y=>({
+    label:`Ing ${y}`,
+    data:Array.from({length:12},(_,m)=>F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&p.ingresoDate.m===m).length),
+    borderColor:YCOL[y],bg:'transparent',fill:false,bw:1.5,dash:[4,2]
+  }));
+  const dsSal=SEL_YEARS.map(y=>({
+    label:`Sal ${y}`,
+    data:Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length),
+    borderColor:YCOL[y]+'99',bg:'transparent',fill:false,bw:1.5,dash:[2,2]
+  }));
+  CHARTS.tend2=mkLine('cTend2',MOL,[...dsIng,...dsSal]);
+  document.getElementById('badgeTend').textContent=label;
+  document.getElementById('badgeTend2').textContent=label;
 }
 
 function renderDepto(){
-  const yr=getYr();
-  const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
-  
-  const c=hcCierre(FILTERED,y);
+  const lastY=Math.max(...SEL_YEARS);
+  const c=hcCierre(FILTERED,lastY);
   const lastM=c.m>=0?c.m:11;
   const counts={};
   FILTERED.forEach(p=>{
-    if(p.sal[y]&&(p.sal[y][lastM]||0)>0){
+    if(p.sal[lastY]&&(p.sal[lastY][lastM]||0)>0){
       const d=p.depto||'N/D';
       counts[d]=(counts[d]||0)+1;
     }
@@ -1501,26 +1469,15 @@ function renderPuestos(){
 
 function renderRot(){
   const F=FILTERED;
-  const yr=getYr();
-  const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
   const meses=getMeses();
-  const hcData=Array.from({length:12},(_,m)=>hc(F,y,m));
-  const salData=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length);
-  const rates=hcData.map((h,i)=>h>0?+(salData[i]/h*100).toFixed(2):0);
-  const bgc=rates.map((r,i)=>{
-    const ip=meses===null||meses.includes(i);
-    return (r>5?'#f87171':r>3?'#fbbf24':'#a5f3fc')+(ip?'cc':'33');
+  // Una línea por año seleccionado
+  const ds=SEL_YEARS.map(y=>{
+    const hcData=Array.from({length:12},(_,m)=>hc(F,y,m));
+    const salData=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length);
+    const rates=hcData.map((h,i)=>h>0?+(salData[i]/h*100).toFixed(2):0);
+    return {label:String(y),data:rates,borderColor:YCOL[y],bg:YCOL[y]+'22',fill:false,bw:1.5,pr:2};
   });
-  const bdc=rates.map((r,i)=>{
-    const ip=meses===null||meses.includes(i);
-    const b=r>5?'#f87171':r>3?'#fbbf24':'#a5f3fc';
-    return ip?b:b+'55';
-  });
-  CHARTS.rot=new Chart(document.getElementById('cRot'),{
-    type:'bar',
-    data:{labels:MOL,datasets:[{data:rates,backgroundColor:bgc,borderColor:bdc,borderWidth:1,borderRadius:4}]},
-    options:{...BOPTS(),plugins:{...BOPTS().plugins,tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.raw}%`}}}}
-  });
+  CHARTS.rot=mkLine('cRot',MOL,ds);
 }
 
 function renderMot(){
@@ -1543,13 +1500,12 @@ function renderDest(){
 
 function renderHM(){
   const F=FILTERED;
-  const yr=getYr();
-  const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
+  const lastY=Math.max(...SEL_YEARS);
   const deptos=[...new Set(F.map(p=>p.depto).filter(Boolean))].sort();
   const wrap=document.getElementById('hmWrap');
   if(!deptos.length){wrap.innerHTML='<div class="empty">Sin datos de departamento</div>';return;}
   const matrix=deptos.map(d=>
-    Array.from({length:12},(_,m)=>F.filter(p=>p.depto===d&&p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length)
+    Array.from({length:12},(_,m)=>F.filter(p=>p.depto===d&&p.salidaDate&&SEL_YEARS.includes(p.salidaDate.y)&&p.salidaDate.m===m).length)
   );
   const maxV=Math.max(...matrix.flat(),1);
   wrap.innerHTML=`<div class="hm-wrap">
@@ -1567,25 +1523,18 @@ function renderHM(){
 
 function renderPlan(){
   const F=FILTERED;
-  const yr=getYr();
-  const y=yr==='all'?null:parseInt(yr);
   const meses=getMeses();
   const mp=meses||Array.from({length:12},(_,i)=>i);
-
-  const data=Array.from({length:12},(_,mi)=>{
-    if(y!==null) return F.reduce((s,p)=>s+(p.sal[y]?p.sal[y][mi]||0:0),0);
-    return F.reduce((s,p)=>s+YEARS.reduce((ys,ay)=>ys+(p.sal[ay]?p.sal[ay][mi]||0:0),0),0);
-  });
-
-  const bgc=data.map((_,mi)=>meses===null||meses.includes(mi)?'#a5f3fc55':'#a5f3fc18');
-  const bdc=data.map((_,mi)=>meses===null||meses.includes(mi)?'#a5f3fc':'#a5f3fc44');
-
-  CHARTS.plan=new Chart(document.getElementById('cPlan'),{
-    type:'bar',
-    data:{labels:MOL,datasets:[{data,backgroundColor:bgc,borderColor:bdc,borderWidth:1.5,borderRadius:4}]},
-    options:{...BOPTS(),plugins:{...BOPTS().plugins,tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>`₡${Math.round(ctx.raw).toLocaleString('es-CR')}`}}}}
-  });
-
+  // Una línea por año seleccionado
+  const ds=SEL_YEARS.map(y=>({
+    label:String(y),
+    data:Array.from({length:12},(_,mi)=>F.reduce((s,p)=>s+(p.sal[y]?p.sal[y][mi]||0:0),0)),
+    borderColor:YCOL[y],bg:YCOL[y]+'18',fill:SEL_YEARS.length===1,bw:1.5,pr:2
+  }));
+  CHARTS.plan=mkLine('cPlan',MOL,ds);
+  // Stats del año más reciente
+  const lastY=Math.max(...SEL_YEARS);
+  const data=Array.from({length:12},(_,mi)=>F.reduce((s,p)=>s+(p.sal[lastY]?p.sal[lastY][mi]||0:0),0));
   const df=mp.map(mi=>data[mi]);
   const tot=df.reduce((a,b)=>a+b,0);
   const nz=df.filter(v=>v>0);
@@ -1611,25 +1560,26 @@ function renderIA(){
 
 function renderFlujo(){
   const F=FILTERED;
-  const yr=getYr();
-  const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
-  const ing=Array.from({length:12},(_,m)=>F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&p.ingresoDate.m===m).length);
-  const sal=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length);
-  const neto=ing.map((v,i)=>v-sal[i]);
+  // Una línea por año seleccionado
+  const dsIng=SEL_YEARS.map(y=>({
+    type:'bar',label:`Ing ${y}`,
+    data:Array.from({length:12},(_,m)=>F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&p.ingresoDate.m===m).length),
+    backgroundColor:YCOL[y]+'88',borderColor:YCOL[y],borderWidth:1,borderRadius:4,stack:`s${y}`
+  }));
+  const dsSal=SEL_YEARS.map(y=>({
+    type:'bar',label:`Sal ${y}`,
+    data:Array.from({length:12},(_,m)=>-F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length),
+    backgroundColor:YCOL[y]+'44',borderColor:YCOL[y]+'88',borderWidth:1,borderRadius:4,stack:`s${y}`
+  }));
   CHARTS.flujo=new Chart(document.getElementById('cFlujo'),{
     type:'bar',
-    data:{labels:MOL,datasets:[
-      {type:'bar',label:'Ingresos',data:ing,backgroundColor:'#a5f3fcaa',borderColor:'#a5f3fc',borderWidth:1,borderRadius:4,stack:'s'},
-      {type:'bar',label:'Salidas',data:sal.map(v=>-v),backgroundColor:'#f87171aa',borderColor:'#f87171',borderWidth:1,borderRadius:4,stack:'s'},
-      {type:'line',label:'Neto',data:neto,borderColor:'#fbbf24',backgroundColor:'transparent',borderWidth:2,pointRadius:3,tension:.4}
-    ]},
+    data:{labels:MOL,datasets:[...dsIng,...dsSal]},
     options:{...BOPTS(),plugins:{...BOPTS().plugins,tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${Math.abs(ctx.raw)}`}}}}
   });
 }
 
 function renderAumentos(){
-  const yr  = getYr();
-  const años = yr === 'all' ? [2025,2026] : [parseInt(yr)].filter(y => AUMENTOS[y]);
+  const años = SEL_YEARS.filter(y => AUMENTOS[y]);
 
   const rows = años.flatMap(y => (AUMENTOS[y]||[]).map(r => {
     // Resolver departamento desde PERSONAS usando nombre del colaborador
@@ -1653,12 +1603,18 @@ function renderAumentos(){
   const porMes   = Array.from({length:12}, (_,mi) => rows.reduce((s,r)=>s+(r.meses[mi]||0),0));
   const maxMesIdx= porMes.indexOf(Math.max(...porMes));
 
+  // Comparativo por año si hay múltiples
+  const byYear = años.map(y=>({y,count:(AUMENTOS[y]||[]).length,total:(AUMENTOS[y]||[]).reduce((s,r)=>s+r.meses.reduce((a,b)=>a+b,0),0)}));
+  const ctxCount = años.length>1?años.map(y=>`${y}:${byYear.find(b=>b.y===y)?.count||0}`).join(' · '):String(años[0]);
+  const ctxTotal = años.length>1?años.map(y=>`${y}:₡${fmtN(byYear.find(b=>b.y===y)?.total||0)}`).join(' · '):`Acumulado ${años[0]}`;
+  const ctxProm  = años.length>1?años.map(y=>{const b=byYear.find(x=>x.y===y);return `${y}:₡${fmtN(b?.count>0?b.total/b.count:0)}`;}).join(' · '):'Por colaborador';
+
   document.getElementById('augCount').textContent   = count;
   document.getElementById('augTotal').textContent   = '₡'+fmtN(total);
   document.getElementById('augProm').textContent    = '₡'+fmtN(prom);
   document.getElementById('augMes').textContent     = MOL[maxMesIdx];
-  document.getElementById('augCtx').textContent     = `${años.join(' & ')}`;
-  document.getElementById('augCtx2').textContent    = `Acumulado ${años.join(' & ')}`;
+  document.getElementById('augCtx').textContent     = ctxCount;
+  document.getElementById('augCtx2').textContent    = ctxTotal;
   document.getElementById('augMesCtx').textContent  = `₡${fmtN(porMes[maxMesIdx])}`;
   document.getElementById('augBadge').textContent   = años.join(' & ');
 
