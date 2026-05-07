@@ -910,7 +910,7 @@ async function loadData(){
   buildFilters();
   ldBar(94); ldMsg('Renderizando...');
 
-  getYr()='2026';
+  SEL_YEARS=[2026];
   syncYearPill('2026');
   applyFilters();
 
@@ -1094,7 +1094,7 @@ function applyFilters(){
 }
 
 function resetFilters(){
-  getYr()='2026';
+  SEL_YEARS=[2026];
   syncYearPill('2026');
   ['selDepto','selContrato','selPais','selProv'].forEach(id=>document.getElementById(id).value='all');
   document.getElementById('selGen').value='all';
