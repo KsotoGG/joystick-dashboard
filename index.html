@@ -1217,10 +1217,9 @@ function renderKPIs(){
   const F=FILTERED;
   const yr=getYr();
   const meses=getMeses();
+  const isAllYears=SEL_YEARS.length===YEARS.length;
 
   let activos,activosMes,salidas,ingresos,planTotal,planMes;
-
-  const yr=getYr(); const isAllYears=SEL_YEARS.length===YEARS.length;
   if(isAllYears){
     const maxY=Math.max(...YEARS.filter(y=>F.some(p=>p.sal[y])));
     const rowsMaxY=F.filter(p=>p.sal[maxY]);
