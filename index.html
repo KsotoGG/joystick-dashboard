@@ -1365,7 +1365,7 @@ function renderTend(){
           display:SEL_YEARS.length>1,
           position:'top',
           align:'end',
-          labels:{color:'#7e92b4',font:{size:9},boxWidth:9,padding:8,
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,
             generateLabels: chart => chart.data.datasets.map((ds,i)=>({
               text: ds.label,
               fillStyle: ds.borderColor,
@@ -1413,7 +1413,7 @@ function renderTend(){
           display:true,
           position:'top',
           align:'end',
-          labels:{color:'#7e92b4',font:{size:9},boxWidth:9,padding:8,
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,
             generateLabels: chart => chart.data.datasets.map((ds,i)=>({
               text: ds.label,
               fillStyle: ds.borderColor,
@@ -1542,15 +1542,33 @@ function renderPuestos(){
 
 function renderRot(){
   const F=FILTERED;
-  const meses=getMeses();
-  // Una línea por año seleccionado
+  const lastY=Math.max(...SEL_YEARS);
   const ds=SEL_YEARS.map(y=>{
     const hcData=Array.from({length:12},(_,m)=>hc(F,y,m));
     const salData=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length);
     const rates=hcData.map((h,i)=>h>0?+(salData[i]/h*100).toFixed(2):0);
-    return {label:String(y),data:rates,borderColor:YCOL[y],bg:YCOL[y]+'22',fill:false,bw:1.5,pr:2};
+    return {label:String(y),data:rates,borderColor:YCOL_ING[y]||YCOL[y],fill:false,bw:y===lastY?2:1.5,pr:2};
   });
-  CHARTS.rot=mkLine('cRot',MOL,ds);
+  if(CHARTS.rot){CHARTS.rot.destroy();delete CHARTS.rot;}
+  CHARTS.rot=new Chart(document.getElementById('cRot'),{
+    type:'line',
+    data:{labels:MOL,datasets:ds.map(s=>({
+      label:s.label,data:s.data,
+      borderColor:s.borderColor,backgroundColor:'transparent',
+      fill:false,tension:.4,borderWidth:s.bw,
+      pointRadius:s.pr,pointBackgroundColor:s.borderColor
+    }))},
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,
+        legend:{display:SEL_YEARS.length>1,position:'top',align:'end',
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8}}
+      },
+      scales:{
+        x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        y:{beginAtZero:true,ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}}
+      }
+    }
+  });
 }
 
 function renderMot(){
@@ -1604,9 +1622,27 @@ function renderPlan(){
     data:Array.from({length:12},(_,mi)=>F.reduce((s,p)=>s+(p.sal[y]?p.sal[y][mi]||0:0),0)),
     borderColor:YCOL[y],bg:YCOL[y]+'18',fill:SEL_YEARS.length===1,bw:1.5,pr:2
   }));
-  CHARTS.plan=mkLine('cPlan',MOL,ds);
-  // Stats del año más reciente
   const lastY=Math.max(...SEL_YEARS);
+  if(CHARTS.plan){CHARTS.plan.destroy();delete CHARTS.plan;}
+  CHARTS.plan=new Chart(document.getElementById('cPlan'),{
+    type:'line',
+    data:{labels:MOL,datasets:ds.map(s=>({
+      label:s.label,data:s.data,
+      borderColor:s.borderColor,backgroundColor:s.bg,
+      fill:s.fill,tension:.4,borderWidth:s.bw,
+      pointRadius:s.pr,pointBackgroundColor:s.borderColor
+    }))},
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,
+        legend:{display:SEL_YEARS.length>1,position:'top',align:'end',
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8}}
+      },
+      scales:{
+        x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        y:{beginAtZero:true,ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}}
+      }
+    }
+  });
   const data=Array.from({length:12},(_,mi)=>F.reduce((s,p)=>s+(p.sal[lastY]?p.sal[lastY][mi]||0:0),0));
   const df=mp.map(mi=>data[mi]);
   const tot=df.reduce((a,b)=>a+b,0);
@@ -1633,21 +1669,32 @@ function renderIA(){
 
 function renderFlujo(){
   const F=FILTERED;
-  // Una línea por año seleccionado
+  // Barras agrupadas: Ingresos (teal) y Salidas (rojo) por año, sin stack para comparar
   const dsIng=SEL_YEARS.map(y=>({
     type:'bar',label:`Ing ${y}`,
     data:Array.from({length:12},(_,m)=>F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&p.ingresoDate.m===m).length),
-    backgroundColor:YCOL[y]+'88',borderColor:YCOL[y],borderWidth:1,borderRadius:4,stack:`s${y}`
+    backgroundColor:(YCOL_ING[y]||YCOL[y])+'99',
+    borderColor:YCOL_ING[y]||YCOL[y],
+    borderWidth:1,borderRadius:3,barPercentage:.8,categoryPercentage:.85
   }));
   const dsSal=SEL_YEARS.map(y=>({
     type:'bar',label:`Sal ${y}`,
-    data:Array.from({length:12},(_,m)=>-F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length),
-    backgroundColor:YCOL[y]+'44',borderColor:YCOL[y]+'88',borderWidth:1,borderRadius:4,stack:`s${y}`
+    data:Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length),
+    backgroundColor:(YCOL_SAL[y]||'#f87171')+'99',
+    borderColor:YCOL_SAL[y]||'#f87171',
+    borderWidth:1,borderRadius:3,barPercentage:.8,categoryPercentage:.85
   }));
+  if(CHARTS.flujo){CHARTS.flujo.destroy();delete CHARTS.flujo;}
   CHARTS.flujo=new Chart(document.getElementById('cFlujo'),{
     type:'bar',
     data:{labels:MOL,datasets:[...dsIng,...dsSal]},
-    options:{...BOPTS(),plugins:{...BOPTS().plugins,tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${Math.abs(ctx.raw)}`}}}}
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,
+        legend:{display:true,position:'top',align:'end',
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8}},
+        tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ${Math.abs(ctx.raw)}`}}
+      }
+    }
   });
 }
 
