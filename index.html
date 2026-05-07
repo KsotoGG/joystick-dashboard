@@ -11,7 +11,7 @@
   --bg:#090e1a;--bg2:#0f1624;--bg3:#161f30;--bg4:#1c2a3e;--bg5:#243048;
   --border:rgba(80,110,160,.15);--border2:rgba(80,110,160,.28);
   --text:#dde4f0;--text2:#7e92b4;--text3:#4a5a78;
-  --teal:#2dd4bf;--cyan:#38bdf8;--green:#a5f3fc;--amber:#fbbf24;
+  --teal:#a5f3fc;--cyan:#38bdf8;--green:#a5f3fc;--amber:#fbbf24;
   --red:#f87171;--purple:#a78bfa;--pink:#f472b6;
   --font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
   --r:12px;--r2:8px;
@@ -205,14 +205,17 @@ option{background:var(--bg3)}
       </div>
     </div>
     <div class="hdr-actions">
-      <select class="btn" id="selYear" onchange="syncYearPill(this.value);applyFilters()">
-        <option value="all">Todos los años</option>
-        <option value="2026" selected>2026</option>
-        <option value="2025">2025</option>
-        <option value="2024">2024</option>
-        <option value="2023">2023</option>
-        <option value="2022">2022</option>
-      </select>
+      <div style="position:relative" id="yearPicker">
+        <button class="btn" onclick="toggleYearPicker(event)">📆 <span id="yearLabel">2026</span> ▾</button>
+        <div id="yearDropdown" style="display:none;position:absolute;top:calc(100% + 5px);left:0;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:10px;z-index:500;min-width:160px;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">Selecciona uno o varios años</div>
+          <div style="display:flex;flex-direction:column;gap:4px" id="yearChecks"></div>
+          <div style="display:flex;gap:5px;margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+            <button class="btn" style="flex:1;font-size:10px" onclick="selAllYears()">Todos</button>
+            <button class="btn btn-accent" style="flex:1;font-size:10px" onclick="aplicarYears()">Aplicar ✓</button>
+          </div>
+        </div>
+      </div>
       <div style="position:relative" id="mesPicker">
         <button class="btn" onclick="toggleMesPicker(event)">📅 <span id="mesLabel">Todos los meses</span> ▾</button>
         <div id="mesDropdown" style="display:none;position:absolute;top:calc(100% + 5px);right:0;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:10px;z-index:500;min-width:300px;box-shadow:0 12px 40px rgba(0,0,0,.5)">
@@ -372,7 +375,7 @@ option{background:var(--bg3)}
         <span class="li"><span class="ld" style="background:#5a80b0"></span>2023</span>
         <span class="li"><span class="ld" style="background:#38bdf8"></span>2024</span>
         <span class="li"><span class="ld" style="background:#a5f3fc"></span>2025</span>
-        <span class="li"><span class="ld" style="background:#2dd4bf"></span>2026</span>
+        <span class="li"><span class="ld" style="background:#a5f3fc"></span>2026</span>
       </div>
       <div style="height:230px"><canvas id="cIA"></canvas></div>
     </div>
@@ -485,8 +488,8 @@ let REVENUE = {};
 let AUMENTOS = {};
 const MOL   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MOF   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const PAL   = ['#2dd4bf','#38bdf8','#a78bfa','#f472b6','#a5f3fc','#fbbf24','#f87171','#818cf8','#fb923c','#34d399'];
-const YCOL  = {2022:'#4a6080',2023:'#5a80b0',2024:'#38bdf8',2025:'#a5f3fc',2026:'#2dd4bf'};
+const PAL   = ['#a5f3fc','#38bdf8','#a78bfa','#f472b6','#a5f3fc','#fbbf24','#f87171','#818cf8','#fb923c','#34d399'];
+const YCOL  = {2022:'#4a6080',2023:'#5a80b0',2024:'#38bdf8',2025:'#a5f3fc',2026:'#a5f3fc'};
 
 let RAW_BY_YEAR = {}; 
 let PERSONAS    = {}; 
@@ -897,7 +900,7 @@ async function loadData(){
   const total=Object.keys(PERSONAS).length;
   if(!total){
     document.getElementById('loader').innerHTML=`
-      <div class="ld-logo"><span style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#2dd4bf,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Joystick</span><br><span style="font-size:16px;color:#7e92b4">People Analytics</span></div>
+      <div class="ld-logo"><span style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#a5f3fc,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Joystick</span><br><span style="font-size:16px;color:#7e92b4">People Analytics</span></div>
       <div class="ld-err">No se pudo cargar ningún dato.<br>
       Verifica que el sheet esté publicado como CSV y las pestañas se llamen 2022, 2023, 2024, 2025, 2026</div>`;
     return;
@@ -907,7 +910,7 @@ async function loadData(){
   buildFilters();
   ldBar(94); ldMsg('Renderizando...');
 
-  document.getElementById('selYear').value='2026';
+  getYr()='2026';
   syncYearPill('2026');
   applyFilters();
 
@@ -922,13 +925,89 @@ async function loadData(){
 
 async function reloadData(){
   const ldr=document.getElementById('loader');
-  ldr.innerHTML=`<div class="ld-logo"><span style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#2dd4bf,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Joystick</span><br><span style="font-size:16px;color:#7e92b4">People Analytics</span></div>
+  ldr.innerHTML=`<div class="ld-logo"><span style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#a5f3fc,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Joystick</span><br><span style="font-size:16px;color:#7e92b4">People Analytics</span></div>
   <div class="ld-tabs">${YEARS.map(y=>`<div class="ld-tab" id="lt${y}">${y}</div>`).join('')}</div>
   <div class="ld-bar-wrap"><div class="ld-bar" id="ldBar"></div></div>
   <div class="ld-msg" id="ldMsg">Recargando...</div>`;
   ldr.style.display='flex';ldr.style.opacity='1';
   destroyCharts();
   await loadData();
+}
+
+let SEL_YEARS = [2026];
+
+// Helper: get current year selection as string (compatible with old code)
+// Returns 'all' if all years selected, or first year if single, or 'multi' if multiple
+function getYr(){ 
+  if(SEL_YEARS.length===YEARS.length) return 'all';
+  if(SEL_YEARS.length===1) return String(SEL_YEARS[0]);
+  return 'multi';
+}
+function getYrNum(){
+  if(SEL_YEARS.length===1) return SEL_YEARS[0];
+  return Math.max(...SEL_YEARS);
+}
+
+function initYearPicker(){
+  const c=document.getElementById('yearChecks');
+  if(!c) return;
+  c.innerHTML=YEARS.slice().reverse().map(y=>`
+    <div class="mc-item ${y===2026?'checked':''}" id="yc${y}" onclick="toggleYear(${y})">
+      <div class="mc-box" id="ycb${y}">${y===2026?'✓':''}</div>
+      <span>${y}</span>
+    </div>`).join('');
+  document.addEventListener('click',e=>{
+    const yp=document.getElementById('yearPicker');
+    if(yp&&!yp.contains(e.target))
+      document.getElementById('yearDropdown').style.display='none';
+  });
+}
+function toggleYearPicker(e){
+  e.stopPropagation();
+  const d=document.getElementById('yearDropdown');
+  d.style.display=d.style.display==='none'?'block':'none';
+}
+function toggleYear(y){
+  const idx=SEL_YEARS.indexOf(y);
+  if(idx>=0) SEL_YEARS.splice(idx,1); else SEL_YEARS.push(y);
+  SEL_YEARS.sort((a,b)=>a-b);
+  YEARS.forEach(yr=>{
+    const checked=SEL_YEARS.includes(yr);
+    const item=document.getElementById('yc'+yr);
+    const box=document.getElementById('ycb'+yr);
+    if(item) item.classList.toggle('checked',checked);
+    if(box) box.textContent=checked?'✓':'';
+  });
+}
+function selAllYears(){
+  SEL_YEARS=[...YEARS];
+  YEARS.forEach(y=>{
+    const item=document.getElementById('yc'+y);
+    const box=document.getElementById('ycb'+y);
+    if(item) item.classList.add('checked');
+    if(box) box.textContent='✓';
+  });
+}
+function aplicarYears(){
+  if(SEL_YEARS.length===0) SEL_YEARS=[2026];
+  document.getElementById('yearDropdown').style.display='none';
+  updYearLabel();
+  syncYearPills();
+  applyFilters();
+}
+function updYearLabel(){
+  const el=document.getElementById('yearLabel');
+  if(!el) return;
+  if(SEL_YEARS.length===YEARS.length) el.textContent='Todos los años';
+  else if(SEL_YEARS.length===1) el.textContent=String(SEL_YEARS[0]);
+  else el.textContent=SEL_YEARS.join(', ');
+}
+function syncYearPills(){
+  document.querySelectorAll('#filtersBar .f-pill').forEach(p=>{
+    const y=p.getAttribute('data-y');
+    if(y==='all') p.classList.toggle('active',SEL_YEARS.length===YEARS.length);
+    else p.classList.toggle('active',SEL_YEARS.includes(parseInt(y)));
+  });
 }
 
 function uniq(key){
@@ -957,15 +1036,22 @@ function buildFilters(){
 }
 
 function setYear(val,el){
-  document.querySelectorAll('#filtersBar .f-pill').forEach(p=>p.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('selYear').value=val;
+  if(val==='all'){
+    SEL_YEARS=[...YEARS];
+  } else {
+    SEL_YEARS=[parseInt(val)];
+  }
+  updYearLabel();
+  syncYearPills();
+  // Update year picker checkboxes
+  YEARS.forEach(y=>{
+    const checked=SEL_YEARS.includes(y);
+    const item=document.getElementById('yc'+y);
+    const box=document.getElementById('ycb'+y);
+    if(item) item.classList.toggle('checked',checked);
+    if(box) box.textContent=checked?'✓':'';
+  });
   applyFilters();
-}
-function syncYearPill(val){
-  document.querySelectorAll('#filtersBar .f-pill').forEach(p=>
-    p.classList.toggle('active',p.getAttribute('data-y')===val)
-  );
 }
 
 function getMeses(){
@@ -975,28 +1061,23 @@ function getMeses(){
 
 function applyFilters(){
   if(!Object.keys(PERSONAS).length) return;
-  const yr=document.getElementById('selYear').value;
   const depto=document.getElementById('selDepto').value;
   const cont=document.getElementById('selContrato').value;
   const gen=document.getElementById('selGen').value;
   const pais=document.getElementById('selPais').value;
   const prov=document.getElementById('selProv').value;
   const meses=getMeses();
+  const isAll=SEL_YEARS.length===YEARS.length;
 
   FILTERED=Object.values(PERSONAS).filter(p=>{
-    
-    if(yr!=='all'){
-      const y=parseInt(yr);
-      if(!p.sal[y]) return false;
-      
-      if(!p.sal[y].some(v=>v>0)) return false;
+    if(!isAll){
+      const hasYear=SEL_YEARS.some(y=>p.sal[y]&&p.sal[y].some(v=>v>0));
+      if(!hasYear) return false;
     }
-    
-    if(meses!==null&&yr!=='all'){
-      const y=parseInt(yr);
-      if(!p.sal[y]||!meses.some(mi=>(p.sal[y][mi]||0)>0)) return false;
+    if(meses!==null){
+      const hasMes=SEL_YEARS.some(y=>p.sal[y]&&meses.some(mi=>(p.sal[y][mi]||0)>0));
+      if(!hasMes) return false;
     }
-    
     if(depto!=='all'&&p.depto!==depto) return false;
     if(cont!=='all'&&p.contrato!==cont) return false;
     if(gen!=='all'&&p.genero!==gen) return false;
@@ -1005,17 +1086,15 @@ function applyFilters(){
     return true;
   });
 
-  console.log(`[FILTER] Año:${yr} → ${FILTERED.length} personas`);
-
+  console.log(`[FILTER] Años:${SEL_YEARS} → ${FILTERED.length} personas`);
   const el=document.getElementById('chPeriodo');
   if(el) el.textContent=getPeriodoLabel();
-
   destroyCharts();
   renderAll();
 }
 
 function resetFilters(){
-  document.getElementById('selYear').value='2026';
+  getYr()='2026';
   syncYearPill('2026');
   ['selDepto','selContrato','selPais','selProv'].forEach(id=>document.getElementById(id).value='all');
   document.getElementById('selGen').value='all';
@@ -1107,7 +1186,7 @@ function updMesLabel(){
   else el.textContent=SEL_MESES.map(i=>MOL[i]).join(', ');
 }
 function getPeriodoLabel(){
-  const yr=document.getElementById('selYear').value;
+  const yr=getYr();
   const ma=getMeses();
   if(!ma) return `📅 ${yr==='all'?'Todos los años':yr}`;
   if(MODO==='acumulado') return `📈 Ene→${MOF[ma[ma.length-1]]} · ${yr}`;
@@ -1136,12 +1215,13 @@ function renderAll(){
 
 function renderKPIs(){
   const F=FILTERED;
-  const yr=document.getElementById('selYear').value;
+  const yr=getYr();
   const meses=getMeses();
 
   let activos,activosMes,salidas,ingresos,planTotal,planMes;
 
-  if(yr==='all'){
+  const yr=getYr(); const isAllYears=SEL_YEARS.length===YEARS.length;
+  if(isAllYears){
     const maxY=Math.max(...YEARS.filter(y=>F.some(p=>p.sal[y])));
     const rowsMaxY=F.filter(p=>p.sal[maxY]);
     
@@ -1261,7 +1341,7 @@ function renderKPIs(){
     const data=Array.from({length:12},(_,mi)=>hc(F,y,mi));
     CHARTS['spk'+i]=new Chart(ctx,{
       type:'line',
-      data:{labels:MOL,datasets:[{data,borderColor:'#2dd4bf',backgroundColor:'#2dd4bf18',fill:true,tension:.4,borderWidth:1.5,pointRadius:0}]},
+      data:{labels:MOL,datasets:[{data,borderColor:'#a5f3fc',backgroundColor:'#a5f3fc18',fill:true,tension:.4,borderWidth:1.5,pointRadius:0}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}},animation:{duration:500}}
     });
   });
@@ -1276,7 +1356,7 @@ function fmtN(n){
 
 function renderTend(){
   const F=FILTERED;
-  const yr=document.getElementById('selYear').value;
+  const yr=getYr();
   const label=getPeriodoLabel();
 
   if(yr==='all'){
@@ -1304,7 +1384,7 @@ function renderTend(){
     const salData=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length);
 
     CHARTS.tend = mkLine('cTend', MOL, [
-      {label:'Headcount',data:hcData,borderColor:'#2dd4bf',bg:'#2dd4bf18',fill:true},
+      {label:'Headcount',data:hcData,borderColor:'#a5f3fc',bg:'#a5f3fc18',fill:true},
     ]);
     CHARTS.tend2 = mkLine('cTend2', MOL, [
       {label:'Ingresos',data:ingData,borderColor:'#a5f3fc',bg:'#a5f3fc18',fill:true},
@@ -1316,7 +1396,7 @@ function renderTend(){
 }
 
 function renderDepto(){
-  const yr=document.getElementById('selYear').value;
+  const yr=getYr();
   const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
   
   const c=hcCierre(FILTERED,y);
@@ -1351,8 +1431,8 @@ function switchTal(tab,el){
 function renderTal(tab){
   let labels,data,color;
   if(tab==='antig'){
-    const b=[['<6m',0,6],['6-12m',6,12],['1-2a',12,24],['2-5a',24,60],['5-10a',60,120],['+10a',120,9999]];
-    labels=b.map(x=>x[0]); color='#2dd4bf';
+    const b=[['<1 año',0,12],['1-3 años',12,36],['3-5 años',36,60],['5-7 años',60,84],['+7 años',84,9999]];
+    labels=b.map(x=>x[0]); color='#a5f3fc';
     data=b.map(([,lo,hi])=>FILTERED.filter(p=>p.antiguedadMeses>=lo&&p.antiguedadMeses<hi).length);
   } else if(tab==='edad'){
     const b=[['<25',0,25],['25-30',25,31],['31-35',31,36],['36-40',36,41],['41-50',41,51],['+50',51,99]];
@@ -1422,7 +1502,7 @@ function renderPuestos(){
 
 function renderRot(){
   const F=FILTERED;
-  const yr=document.getElementById('selYear').value;
+  const yr=getYr();
   const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
   const meses=getMeses();
   const hcData=Array.from({length:12},(_,m)=>hc(F,y,m));
@@ -1464,7 +1544,7 @@ function renderDest(){
 
 function renderHM(){
   const F=FILTERED;
-  const yr=document.getElementById('selYear').value;
+  const yr=getYr();
   const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
   const deptos=[...new Set(F.map(p=>p.depto).filter(Boolean))].sort();
   const wrap=document.getElementById('hmWrap');
@@ -1488,7 +1568,7 @@ function renderHM(){
 
 function renderPlan(){
   const F=FILTERED;
-  const yr=document.getElementById('selYear').value;
+  const yr=getYr();
   const y=yr==='all'?null:parseInt(yr);
   const meses=getMeses();
   const mp=meses||Array.from({length:12},(_,i)=>i);
@@ -1498,8 +1578,8 @@ function renderPlan(){
     return F.reduce((s,p)=>s+YEARS.reduce((ys,ay)=>ys+(p.sal[ay]?p.sal[ay][mi]||0:0),0),0);
   });
 
-  const bgc=data.map((_,mi)=>meses===null||meses.includes(mi)?'#2dd4bf55':'#2dd4bf18');
-  const bdc=data.map((_,mi)=>meses===null||meses.includes(mi)?'#2dd4bf':'#2dd4bf44');
+  const bgc=data.map((_,mi)=>meses===null||meses.includes(mi)?'#a5f3fc55':'#a5f3fc18');
+  const bdc=data.map((_,mi)=>meses===null||meses.includes(mi)?'#a5f3fc':'#a5f3fc44');
 
   CHARTS.plan=new Chart(document.getElementById('cPlan'),{
     type:'bar',
@@ -1532,7 +1612,7 @@ function renderIA(){
 
 function renderFlujo(){
   const F=FILTERED;
-  const yr=document.getElementById('selYear').value;
+  const yr=getYr();
   const y=yr==='all'?Math.max(...YEARS):parseInt(yr);
   const ing=Array.from({length:12},(_,m)=>F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&p.ingresoDate.m===m).length);
   const sal=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length);
@@ -1549,7 +1629,7 @@ function renderFlujo(){
 }
 
 function renderAumentos(){
-  const yr  = document.getElementById('selYear').value;
+  const yr  = getYr();
   const años = yr === 'all' ? [2025,2026] : [parseInt(yr)].filter(y => AUMENTOS[y]);
 
   const rows = años.flatMap(y => (AUMENTOS[y]||[]).map(r => {
@@ -1588,8 +1668,8 @@ function renderAumentos(){
     data:  Array.from({length:12}, (_,mi) =>
       (AUMENTOS[y]||[]).reduce((s,r)=>s+(r.meses[mi]||0),0)
     ),
-    borderColor: y===2026?'#2dd4bf':'#fbbf24',
-    bg: y===2026?'#2dd4bf18':'#fbbf2418',
+    borderColor: y===2026?'#a5f3fc':'#fbbf24',
+    bg: y===2026?'#a5f3fc18':'#fbbf2418',
     fill:true, bw:2, pr:3
   }));
   if(CHARTS.augMes){CHARTS.augMes.destroy();delete CHARTS.augMes;}
@@ -1608,7 +1688,7 @@ function renderAumentos(){
   // Por departamento: % acumulado sobre planilla del departamento
   const deptoAumento = {};
   const deptoPlanilla = {};
-  const yr2 = document.getElementById('selYear').value;
+  const yr2 = getYr();
   const y2 = yr2==='all' ? 2026 : parseInt(yr2);
 
   rows.forEach(r => {
@@ -1720,8 +1800,8 @@ function mkLine(id,labels,series){
 
 function mkBar(id,labels,data,colors,horizontal=false){
   const ctx=document.getElementById(id); if(!ctx) return null;
-  const bgc=colors.length>1?labels.map((_,i)=>colors[i%colors.length]+'cc'):[(colors[0]||'#2dd4bf')+'cc'];
-  const bdc=colors.length>1?labels.map((_,i)=>colors[i%colors.length]):[colors[0]||'#2dd4bf'];
+  const bgc=colors.length>1?labels.map((_,i)=>colors[i%colors.length]+'cc'):[(colors[0]||'#a5f3fc')+'cc'];
+  const bdc=colors.length>1?labels.map((_,i)=>colors[i%colors.length]):[colors[0]||'#a5f3fc'];
   const opts={...BOPTS()};
   if(horizontal) opts.indexAxis='y';
 
@@ -1826,6 +1906,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   };
 
   Chart.register(labelPlugin);
+  initYearPicker();
   initMesPicker();
   loadData();
 });
