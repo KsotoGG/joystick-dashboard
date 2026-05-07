@@ -269,21 +269,14 @@ option{background:var(--bg3)}
         <div><div class="pt">Headcount Activo por Mes</div><div class="ps">Colaboradores con salario activo</div></div>
         <div class="pb" id="badgeTend">—</div>
       </div>
-      <div class="legend">
-        <span class="li"><span class="ld" style="background:var(--teal)"></span>Headcount</span>
-      </div>
-      <div style="height:240px"><canvas id="cTend"></canvas></div>
+      <div style="height:260px"><canvas id="cTend"></canvas></div>
     </div>
     <div class="panel c6">
       <div class="ph">
         <div><div class="pt">Ingresos y Salidas por Mes</div><div class="ps">Movimiento mensual de colaboradores</div></div>
         <div class="pb" id="badgeTend2">—</div>
       </div>
-      <div class="legend">
-        <span class="li"><span class="ld" style="background:var(--green)"></span>Ingresos</span>
-        <span class="li"><span class="ld" style="background:var(--red)"></span>Salidas</span>
-      </div>
-      <div style="height:240px"><canvas id="cTend2"></canvas></div>
+      <div style="height:260px"><canvas id="cTend2"></canvas></div>
     </div>
   </div>
   <div class="cg">
@@ -1337,29 +1330,109 @@ function fmtN(n){
   return Math.round(n).toLocaleString('es-CR');
 }
 
+// Paletas por año para HC/Ingresos (azules/teales) y Salidas (rojos)
+const YCOL_ING = {2022:'#164e63',2023:'#0e7490',2024:'#38bdf8',2025:'#67e8f9',2026:'#a5f3fc'};
+const YCOL_SAL = {2022:'#7f1d1d',2023:'#b91c1c',2024:'#ef4444',2025:'#f87171',2026:'#fca5a5'};
+
 function renderTend(){
   const F=FILTERED;
   const label=SEL_YEARS.length===1?getPeriodoLabel():SEL_YEARS.join(' + ');
-  // HC: una línea por año seleccionado
+  const lastY=Math.max(...SEL_YEARS);
+
+  // HC: una línea por año, con color teal escalado y label con año
   const dsHC=SEL_YEARS.map(y=>({
     label:String(y),
     data:Array.from({length:12},(_,m)=>hc(F,y,m)),
-    borderColor:YCOL[y],bg:'transparent',fill:false,
-    bw:y===Math.max(...SEL_YEARS)?2.5:1.5,pr:y===Math.max(...SEL_YEARS)?3:2
+    borderColor:YCOL_ING[y]||YCOL[y],
+    bg:'transparent',fill:false,
+    bw:y===lastY?2.5:1.5,pr:y===lastY?3:2
   }));
-  CHARTS.tend=mkLine('cTend',MOL,dsHC);
-  // Ingresos/Salidas: una línea por año seleccionado
+
+  // Destruir y recrear con leyenda visible cuando hay múltiples años
+  const ctxHC=document.getElementById('cTend');
+  if(CHARTS.tend){CHARTS.tend.destroy();delete CHARTS.tend;}
+  CHARTS.tend=new Chart(ctxHC,{
+    type:'line',
+    data:{labels:MOL,datasets:dsHC.map(s=>({
+      label:s.label,data:s.data,
+      borderColor:s.borderColor,backgroundColor:'transparent',
+      fill:false,tension:.4,borderWidth:s.bw,
+      pointRadius:s.pr,pointBackgroundColor:s.borderColor
+    }))},
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,
+        legend:{
+          display:SEL_YEARS.length>1,
+          position:'top',
+          align:'end',
+          labels:{color:'#7e92b4',font:{size:9},boxWidth:9,padding:8,
+            generateLabels: chart => chart.data.datasets.map((ds,i)=>({
+              text: ds.label,
+              fillStyle: ds.borderColor,
+              strokeStyle: ds.borderColor,
+              lineWidth: 2,
+              hidden: false,
+              datasetIndex: i
+            }))
+          }
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        y:{beginAtZero:true,ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}}
+      }
+    }
+  });
+
+  // Ingresos/Salidas: teales para ingresos, rojos para salidas, label con año
   const dsIng=SEL_YEARS.map(y=>({
     label:`Ing ${y}`,
     data:Array.from({length:12},(_,m)=>F.filter(p=>p.ingresoDate&&p.ingresoDate.y===y&&p.ingresoDate.m===m).length),
-    borderColor:YCOL[y],bg:'transparent',fill:false,bw:1.5,dash:[4,2]
+    borderColor:YCOL_ING[y]||YCOL[y],bg:'transparent',fill:false,bw:1.8,pr:2,dash:[]
   }));
   const dsSal=SEL_YEARS.map(y=>({
     label:`Sal ${y}`,
     data:Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m).length),
-    borderColor:YCOL[y]+'99',bg:'transparent',fill:false,bw:1.5,dash:[2,2]
+    borderColor:YCOL_SAL[y]||'#f87171',bg:'transparent',fill:false,bw:1.8,pr:2,dash:[4,3]
   }));
-  CHARTS.tend2=mkLine('cTend2',MOL,[...dsIng,...dsSal]);
+
+  const ctxIS=document.getElementById('cTend2');
+  if(CHARTS.tend2){CHARTS.tend2.destroy();delete CHARTS.tend2;}
+  const allDs=[...dsIng,...dsSal];
+  CHARTS.tend2=new Chart(ctxIS,{
+    type:'line',
+    data:{labels:MOL,datasets:allDs.map(s=>({
+      label:s.label,data:s.data,
+      borderColor:s.borderColor,backgroundColor:'transparent',
+      fill:false,tension:.4,borderWidth:s.bw,borderDash:s.dash||[],
+      pointRadius:s.pr,pointBackgroundColor:s.borderColor
+    }))},
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,
+        legend:{
+          display:true,
+          position:'top',
+          align:'end',
+          labels:{color:'#7e92b4',font:{size:9},boxWidth:9,padding:8,
+            generateLabels: chart => chart.data.datasets.map((ds,i)=>({
+              text: ds.label,
+              fillStyle: ds.borderColor,
+              strokeStyle: ds.borderColor,
+              lineWidth: ds.label.startsWith('Sal')?0:2,
+              lineDash: ds.label.startsWith('Sal')?[4,3]:[],
+              hidden: false,
+              datasetIndex: i
+            }))
+          }
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        y:{beginAtZero:true,ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}}
+      }
+    }
+  });
+
   document.getElementById('badgeTend').textContent=label;
   document.getElementById('badgeTend2').textContent=label;
 }
