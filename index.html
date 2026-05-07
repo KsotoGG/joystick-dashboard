@@ -305,13 +305,25 @@ option{background:var(--bg3)}
       </div>
       <div style="height:190px"><canvas id="cTal"></canvas></div>
     </div>
-    <div class="panel c4"><div class="ph"><div><div class="pt">Grado Académico</div></div></div><div class="prog-list" id="progAcad"></div></div>
-    <div class="panel c4"><div class="ph"><div><div class="pt">Nivel de Inglés</div></div></div><div class="prog-list" id="progIng"></div></div>
+    <div class="panel c4">
+      <div class="ph"><div><div class="pt">Formación</div></div></div>
+      <div class="tabs" id="formTabs">
+        <div class="tab active" onclick="switchForm('acad',this)">Grado Académico</div>
+        <div class="tab" onclick="switchForm('ing',this)">Inglés</div>
+      </div>
+      <div class="prog-list" id="progFormContent"></div>
+    </div>
   </div>
 
   <div class="cg">
-    <div class="panel c6"><div class="ph"><div><div class="pt">Top Provincias</div></div></div><div class="prog-list" id="progProv"></div></div>
-    <div class="panel c6"><div class="ph"><div><div class="pt">Top Cantones</div></div></div><div class="prog-list" id="progCant"></div></div>
+    <div class="panel c6">
+      <div class="ph"><div><div class="pt">Ubicación</div></div></div>
+      <div class="tabs" id="ubTabs">
+        <div class="tab active" onclick="switchUb('prov',this)">Provincias</div>
+        <div class="tab" onclick="switchUb('cant',this)">Cantones</div>
+      </div>
+      <div class="prog-list" id="progUbContent"></div>
+    </div>
   </div>
 
   <div class="cg">
@@ -1192,9 +1204,10 @@ function renderAll(){
   renderDepto();
   renderGen(); renderCont(); renderEst(); renderPaisChart();
   renderTal(ACT_TAL);
-  renderProg('progAcad','grado');
-  renderProg('progIng','ingles');
-  renderProgProv(); renderProgCant();
+  renderProg('progAcad','grado');  // kept for compat, not displayed
+  renderProg('progIng','ingles');  // kept for compat, not displayed
+  renderForm(ACT_FORM);
+  renderUb(ACT_UB);
   renderPuestos();
   renderRot(); renderMot(); renderRaz(); renderDest();
   renderHM();
@@ -1500,8 +1513,29 @@ function renderProg(elId,field){
     </div>`;
   }).join('')||'<div class="empty">Sin datos</div>';
 }
-function renderProgProv(){ renderProgField('progProv','provincia'); }
-function renderProgCant(){ renderProgField('progCant','canton'); }
+
+let ACT_FORM = 'acad';
+let ACT_UB   = 'prov';
+
+function switchForm(tab, el){
+  ACT_FORM = tab;
+  document.querySelectorAll('#formTabs .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderForm(tab);
+}
+function renderForm(tab){
+  renderProg('progFormContent', tab==='acad'?'grado':'ingles');
+}
+
+function switchUb(tab, el){
+  ACT_UB = tab;
+  document.querySelectorAll('#ubTabs .tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderUb(tab);
+}
+function renderUb(tab){
+  renderProgField('progUbContent', tab==='prov'?'provincia':'canton');
+}
 function renderProgField(elId,field){
   const c=countBy(FILTERED,field);
   const total=FILTERED.length||1;
@@ -1924,7 +1958,10 @@ function animFI(){
 }
 
 window.addEventListener('DOMContentLoaded',()=>{
-  
+  // Global Chart.js defaults — evita labels/ticks negros
+  Chart.defaults.color = '#7e92b4';
+  Chart.defaults.font.family = "'DM Sans', system-ui, sans-serif";
+
   const labelPlugin = {
     id:'labelPlugin',
     afterDatasetsDraw(chart){
@@ -1956,7 +1993,6 @@ window.addEventListener('DOMContentLoaded',()=>{
 
       if(type === 'doughnut'){
         const total = chart.data.datasets[0].data.reduce((a,b)=>a+b,0)||1;
-        const bgColors = chart.data.datasets[0].backgroundColor;
         chart.data.datasets.forEach((ds,di)=>{
           chart.getDatasetMeta(di).data.forEach((arc,i)=>{
             const v = ds.data[i];
@@ -1966,8 +2002,7 @@ window.addEventListener('DOMContentLoaded',()=>{
             const r = (arc.innerRadius + arc.outerRadius)/2;
             const x = arc.x + Math.cos(angle)*r;
             const y = arc.y + Math.sin(angle)*r;
-            
-            ctx.fillStyle = 'rgba(5,13,26,0.85)';
+            ctx.fillStyle = 'rgba(221,228,240,0.92)';
             ctx.font = "bold 10px 'DM Mono',monospace";
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
