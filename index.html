@@ -379,7 +379,7 @@ option{background:var(--bg3)}
         <span class="li"><span class="ld" style="background:#4a6080"></span>2022</span>
         <span class="li"><span class="ld" style="background:#5a80b0"></span>2023</span>
         <span class="li"><span class="ld" style="background:#38bdf8"></span>2024</span>
-        <span class="li"><span class="ld" style="background:#4ade80"></span>2025</span>
+        <span class="li"><span class="ld" style="background:#F6B1CE"></span>2025</span>
         <span class="li"><span class="ld" style="background:#4ade80"></span>2026</span>
       </div>
       <div style="height:230px"><canvas id="cIA"></canvas></div>
@@ -389,11 +389,6 @@ option{background:var(--bg3)}
   <div class="cg">
     <div class="panel c12">
       <div class="ph"><div><div class="pt">Flujo Mensual: Ingresos vs Salidas</div></div></div>
-      <div class="legend">
-        <span class="li"><span class="ld" style="background:var(--green)"></span>Ingresos</span>
-        <span class="li"><span class="ld" style="background:var(--red)"></span>Salidas</span>
-        <span class="li"><span class="ld" style="background:var(--amber)"></span>Neto</span>
-      </div>
       <div style="height:210px"><canvas id="cFlujo"></canvas></div>
     </div>
   </div>
@@ -1344,7 +1339,7 @@ function fmtN(n){
 }
 
 // Paletas por año para HC/Ingresos (azules/teales) y Salidas (rojos)
-const YCOL_ING = {2022:'#164e63',2023:'#0e7490',2024:'#38bdf8',2025:'#67e8f9',2026:'#4ade80'};
+const YCOL_ING = {2022:'#164e63',2023:'#0e7490',2024:'#38bdf8',2025:'#F6B1CE',2026:'#4ade80'};
 const YCOL_SAL = {2022:'#7f1d1d',2023:'#b91c1c',2024:'#ef4444',2025:'#f87171',2026:'#fca5a5'};
 
 function renderTend(){
@@ -1381,6 +1376,7 @@ function renderTend(){
           labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,
             generateLabels: chart => chart.data.datasets.map((ds,i)=>({
               text: ds.label,
+              fontColor: '#dde4f0',
               fillStyle: ds.borderColor,
               strokeStyle: ds.borderColor,
               lineWidth: 2,
@@ -1429,6 +1425,7 @@ function renderTend(){
           labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,
             generateLabels: chart => chart.data.datasets.map((ds,i)=>({
               text: ds.label,
+              fontColor: '#dde4f0',
               fillStyle: ds.borderColor,
               strokeStyle: ds.borderColor,
               lineWidth: ds.label.startsWith('Sal')?0:2,
@@ -1794,24 +1791,23 @@ function renderAumentos(){
   if(CHARTS.augMotivo){CHARTS.augMotivo.destroy();delete CHARTS.augMotivo;}
   CHARTS.augMotivo = mkDonut('cAugMotivo', motivoKeys, motivoVals);
 
-  // Por departamento: % acumulado sobre planilla del departamento
+  // Por departamento: % acumulado sobre planilla de todos los años con aumentos
   const deptoAumento = {};
   const deptoPlanilla = {};
-  const yr2 = getYr();
-  const y2 = yr2==='all' ? 2026 : parseInt(yr2);
 
   rows.forEach(r => {
     const d = r.depto || 'N/D';
-    // Sumar monto total de aumentos por depto
     deptoAumento[d] = (deptoAumento[d]||0) + r.meses.reduce((a,b)=>a+b,0);
   });
 
-  // Calcular planilla total por departamento (del año filtrado)
-  Object.values(PERSONAS).forEach(p => {
-    if(!p.sal[y2]) return;
-    const d = p.depto || 'N/D';
-    const planillaAnual = p.sal[y2].reduce((a,b)=>a+b,0);
-    deptoPlanilla[d] = (deptoPlanilla[d]||0) + planillaAnual;
+  // Acumular planilla de todos los años seleccionados que tengan datos de aumentos
+  años.forEach(y => {
+    Object.values(PERSONAS).forEach(p => {
+      if(!p.sal[y]) return;
+      const d = p.depto || 'N/D';
+      const planillaAnual = p.sal[y].reduce((a,b)=>a+b,0);
+      deptoPlanilla[d] = (deptoPlanilla[d]||0) + planillaAnual;
+    });
   });
 
   // Calcular % = aumento / planilla * 100
