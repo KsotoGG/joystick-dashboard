@@ -2018,17 +2018,17 @@ function renderLiquidaciones(){
   const prom = data.length ? totalMonto/data.length : 0;
   const maxRow = data.reduce((a,b)=>b.total>a.total?b:a, {total:0,nombre:''});
 
-  el('liqTotal').textContent   = '₡'+fmtN(totalMonto);
-  el('liqTotalCtx').textContent= `${data.length} liquidaciones`;
-  el('liqProm').textContent    = '₡'+fmtN(prom);
-  el('liqPromCtx').textContent = 'por persona';
-  el('liqMax').textContent     = '₡'+fmtN(maxRow.total);
-  el('liqMaxCtx').textContent  = maxRow.nombre || '—';
-  el('liqCount').textContent   = data.length;
+  document.getElementById('liqTotal').textContent   = '₡'+fmtN(totalMonto);
+  document.getElementById('liqTotalCtx').textContent= `${data.length} liquidaciones`;
+  document.getElementById('liqProm').textContent    = '₡'+fmtN(prom);
+  document.getElementById('liqPromCtx').textContent = 'por persona';
+  document.getElementById('liqMax').textContent     = '₡'+fmtN(maxRow.total);
+  document.getElementById('liqMaxCtx').textContent  = maxRow.nombre || '—';
+  document.getElementById('liqCount').textContent   = data.length;
 
   // Badge años
-  el('badgeLiqMes').textContent  = label;
-  el('badgeLiqComp').textContent = label;
+  document.getElementById('badgeLiqMes').textContent  = label;
+  document.getElementById('badgeLiqComp').textContent = label;
 
   // ── Gráfico 1: Total por mes ──────────────────────────────
   const mesIdx = m => ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'].indexOf(m.substring(0,3));
