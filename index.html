@@ -665,32 +665,71 @@ async function loadLiquidaciones(){
     const colMes      = ci('mes');
     const colAntig    = ci('antig');
     const colSalario  = ci('salario');
-    const colVacDias  = ci('dias de vacaciones');
     const colAguinaldo= ci('aguinaldo');
     const colVacMonto = ci('vacaciones');
     const colPreaviso = ci('preaviso');
     const colCesantia = ci('cesantia');
     const colTotal    = ci('total');
-    const colAnio     = ci('año');
+    const colAnio     = headers.findIndex(h => h==='año' || h==='anio' || h==='year');
+
+    console.log('[LIQ] headers:', headers);
+
+    // Parsear mes y año desde un campo — acepta: "Enero 2025", "1/2025", "2025-01", número, etc.
+    const parseMesAnio = raw => {
+      const s = String(raw||'').trim();
+      let mes = '', anio = 0;
+
+      // Buscar año de 4 dígitos
+      const yearMatch = s.match(/\b(20\d{2})\b/);
+      if(yearMatch) anio = parseInt(yearMatch[1]);
+
+      // Número puro = mes 1-12
+      const numMes = parseInt(s);
+      if(!isNaN(numMes) && numMes>=1 && numMes<=12){ mes = String(numMes); return {mes,anio}; }
+
+      // Nombre de mes en español
+      const nombres = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      const cortos  = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      const sl = s.toLowerCase();
+      const idx = nombres.findIndex(n=>sl.includes(n)) !== -1
+        ? nombres.findIndex(n=>sl.includes(n))
+        : cortos.findIndex(n=>sl.startsWith(n));
+      if(idx>=0) mes = String(idx+1);
+
+      // Formato MM/YYYY o YYYY-MM
+      const m1 = s.match(/^(\d{1,2})\/\d{4}$/);
+      if(m1){ mes = m1[1]; return {mes,anio}; }
+      const m2 = s.match(/^\d{4}-(\d{2})$/);
+      if(m2){ mes = String(parseInt(m2[1])); return {mes,anio}; }
+
+      return {mes, anio};
+    };
 
     LIQUIDACIONES = rows.slice(1)
       .filter(r => colEmpresa >= 0 && (r[colEmpresa]||'').toLowerCase().includes('joystick'))
-      .map(r => ({
-        nombre:    (r[colNombre]  ||'').trim(),
-        tipo:      (r[colTipo]    ||'').trim(),
-        mes:       (r[colMes]     ||'').trim().toLowerCase(),
-        anio:      parseInt(r[colAnio]||'0'),
-        antiguedad:(r[colAntig]   ||'').trim(),
-        salario:   parseSal(r[colSalario]  ||'0'),
-        aguinaldo: parseSal(r[colAguinaldo]||'0'),
-        vacaciones:parseSal(r[colVacMonto] ||'0'),
-        preaviso:  parseSal(r[colPreaviso] ||'0'),
-        cesantia:  parseSal(r[colCesantia] ||'0'),
-        total:     parseSal(r[colTotal]    ||'0'),
-      }))
+      .map(r => {
+        const rawMes = r[colMes]||'';
+        const {mes, anio: anioMes} = parseMesAnio(rawMes);
+        const anioCol = colAnio>=0 ? parseInt(r[colAnio]||'0') : 0;
+        const anio = anioCol || anioMes;
+        return {
+          nombre:    (r[colNombre]  ||'').trim(),
+          tipo:      (r[colTipo]    ||'').trim(),
+          mes,
+          anio,
+          antiguedad:(r[colAntig]   ||'').trim(),
+          salario:   parseSal(r[colSalario]  ||'0'),
+          aguinaldo: parseSal(r[colAguinaldo]||'0'),
+          vacaciones:parseSal(r[colVacMonto] ||'0'),
+          preaviso:  parseSal(r[colPreaviso] ||'0'),
+          cesantia:  parseSal(r[colCesantia] ||'0'),
+          total:     parseSal(r[colTotal]    ||'0'),
+        };
+      })
       .filter(r => r.nombre && r.total > 0);
 
     console.log(`[LIQUIDACIONES] ${LIQUIDACIONES.length} registros cargados`);
+    console.log('[LIQ] muestra años/meses:', LIQUIDACIONES.slice(0,5).map(r=>({mes:r.mes,anio:r.anio,total:r.total})));
   } catch(e){
     console.warn('[LIQUIDACIONES] Error:', e);
   }
@@ -2011,8 +2050,11 @@ function renderLiquidaciones(){
   const liq = LIQUIDACIONES;
   // Debug: ver años disponibles en los datos
   console.log('[LIQ DEBUG] años en LIQUIDACIONES:', [...new Set(liq.map(r=>r.anio))], '| SEL_YEARS:', SEL_YEARS);
-  // Filtrar por años seleccionados (si anio=0 incluir siempre — año no parseado)
-  const data = liq.filter(r => r.anio===0 || SEL_YEARS.includes(r.anio));
+  // Filtrar por años — si no hay match (ej: años en datos no coinciden), mostrar todos
+  let data = liq.filter(r => r.anio===0 || SEL_YEARS.includes(r.anio));
+  if(!data.length) data = [...liq]; // fallback: mostrar todos
+  if(data.length) console.log('[LIQ DEBUG] muestra:', data.slice(0,3).map(r=>({mes:r.mes,anio:r.anio,total:r.total})));
+
   const label = SEL_YEARS.length===1 ? String(SEL_YEARS[0]) : SEL_YEARS.join(' + ');
 
   // KPIs
@@ -2027,9 +2069,6 @@ function renderLiquidaciones(){
   document.getElementById('liqMax').textContent     = '₡'+fmtN(maxRow.total);
   document.getElementById('liqMaxCtx').textContent  = maxRow.nombre || '—';
   document.getElementById('liqCount').textContent   = data.length;
-
-  // DEBUG: ver cómo vienen los meses y años
-  if(data.length) console.log('[LIQ DEBUG] muestra:', data.slice(0,5).map(r=>({mes:r.mes,anio:r.anio,total:r.total})));
 
   // Parsear mes flexible: número (1-12), nombre corto o largo en español
   const mesIdx = m => {
