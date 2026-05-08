@@ -2009,8 +2009,10 @@ function renderAumentos(){
 
 function renderLiquidaciones(){
   const liq = LIQUIDACIONES;
-  // Filtrar por años seleccionados
-  const data = liq.filter(r => SEL_YEARS.includes(r.anio) || r.anio===0);
+  // Debug: ver años disponibles en los datos
+  console.log('[LIQ DEBUG] años en LIQUIDACIONES:', [...new Set(liq.map(r=>r.anio))], '| SEL_YEARS:', SEL_YEARS);
+  // Filtrar por años seleccionados (si anio=0 incluir siempre — año no parseado)
+  const data = liq.filter(r => r.anio===0 || SEL_YEARS.includes(r.anio));
   const label = SEL_YEARS.length===1 ? String(SEL_YEARS[0]) : SEL_YEARS.join(' + ');
 
   // KPIs
@@ -2026,12 +2028,23 @@ function renderLiquidaciones(){
   document.getElementById('liqMaxCtx').textContent  = maxRow.nombre || '—';
   document.getElementById('liqCount').textContent   = data.length;
 
-  // Badge años
-  document.getElementById('badgeLiqMes').textContent  = label;
-  document.getElementById('badgeLiqComp').textContent = label;
+  // DEBUG: ver cómo vienen los meses y años
+  if(data.length) console.log('[LIQ DEBUG] muestra:', data.slice(0,5).map(r=>({mes:r.mes,anio:r.anio,total:r.total})));
 
-  // ── Gráfico 1: Total por mes ──────────────────────────────
-  const mesIdx = m => ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'].indexOf(m.substring(0,3));
+  // Parsear mes flexible: número (1-12), nombre corto o largo en español
+  const mesIdx = m => {
+    if(!m) return -1;
+    const s = String(m).toLowerCase().trim();
+    // Número directo
+    const n = parseInt(s);
+    if(!isNaN(n) && n>=1 && n<=12) return n-1;
+    // Nombre corto o largo
+    const names = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const full  = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const si = names.findIndex(x=>s.startsWith(x));
+    if(si>=0) return si;
+    return full.findIndex(x=>s.startsWith(x));
+  };
   const totMes = Array(12).fill(0);
   data.forEach(r=>{ const mi=mesIdx(r.mes); if(mi>=0) totMes[mi]+=r.total; });
 
