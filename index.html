@@ -441,10 +441,48 @@ option{background:var(--bg3)}
       <div style="height:220px"><canvas id="cAugDepto"></canvas></div>
     </div>
   </div>
-  <div class="cg">
-    <div class="panel c12">
-      <div class="ph">
-        <div><div class="pt">Panel de Alertas</div></div>
+  <!-- ── LIQUIDACIONES ───────────────────────────── -->
+  <div class="sec">Liquidaciones</div>
+  <div class="cg fi" id="secLiq">
+    <div class="panel c3 fi">
+      <div class="kpi-lbl">Total Liquidado</div>
+      <div class="kpi-row"><span class="kpi-val" id="liqTotal">—</span></div>
+      <div class="kpi-ctx" id="liqTotalCtx">acumulado</div>
+    </div>
+    <div class="panel c3 fi">
+      <div class="kpi-lbl">Promedio por Persona</div>
+      <div class="kpi-row"><span class="kpi-val" id="liqProm">—</span></div>
+      <div class="kpi-ctx" id="liqPromCtx">—</div>
+    </div>
+    <div class="panel c3 fi">
+      <div class="kpi-lbl">Mayor Liquidación</div>
+      <div class="kpi-row"><span class="kpi-val" id="liqMax">—</span></div>
+      <div class="kpi-ctx" id="liqMaxCtx">—</div>
+    </div>
+    <div class="panel c3 fi">
+      <div class="kpi-lbl">Colaboradores Liquidados</div>
+      <div class="kpi-row"><span class="kpi-val" id="liqCount">—</span></div>
+      <div class="kpi-ctx" id="liqCountCtx">total período</div>
+    </div>
+  </div>
+  <div class="cg fi">
+    <div class="panel c8 fi">
+      <div class="ph"><div><div class="pt">Total Liquidado por Mes</div><div class="ps">Monto total de liquidaciones por mes</div></div><div class="pb" id="badgeLiqMes">—</div></div>
+      <div style="height:240px"><canvas id="cLiqMes"></canvas></div>
+    </div>
+    <div class="panel c4 fi">
+      <div class="ph"><div><div class="pt">Costo por Tipo de Salida</div><div class="ps">Total liquidado según motivo</div></div></div>
+      <div style="height:240px"><canvas id="cLiqTipo"></canvas></div>
+    </div>
+  </div>
+  <div class="cg fi">
+    <div class="panel c12 fi">
+      <div class="ph"><div><div class="pt">Desglose por Componente</div><div class="ps">Aguinaldo · Vacaciones · Preaviso · Cesantía</div></div><div class="pb" id="badgeLiqComp">—</div></div>
+      <div style="height:240px"><canvas id="cLiqComp"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── PANEL DE ALERTAS ──────────────────────────── -->
         <span class="chip red" id="chAlertas">0</span>
       </div>
       <div class="alert-list" id="alertList"></div>
@@ -486,6 +524,10 @@ const AUMENTOS_URL = {
   2025: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRb7qOTF0UTxkk00C5mpEC8LfGhuE8MBxr7A0mTnNf46sBdy0mKiMYDOEgM6JRXic1_y1ntO7DzpPj5/pub?gid=83497296&single=true&output=csv',
   2026: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRb7qOTF0UTxkk00C5mpEC8LfGhuE8MBxr7A0mTnNf46sBdy0mKiMYDOEgM6JRXic1_y1ntO7DzpPj5/pub?gid=1775029576&single=true&output=csv',
 };
+
+const LIQUIDACIONES_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSUwW9U5Kts2kJlJrUbRse8xboAfinsnT98NUpUt4V1hmwmIKVOGRWEpwtw7W6EiyBzZjMetTuLrVE2/pub?output=csv';
+
+let LIQUIDACIONES = []; // filas filtradas solo Joystick
 
 let REVENUE = {};
 
@@ -605,7 +647,56 @@ async function loadAumentos(){
   }
 }
 
-async function fetchTab(year){
+async function loadLiquidaciones(){
+  LIQUIDACIONES = [];
+  try{
+    const r = await fetch(LIQUIDACIONES_URL);
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    const csv = await r.text();
+    const rows = parseCSV(csv);
+    if(!rows.length) return;
+
+    const headers = rows[0].map(h => h.toLowerCase().trim());
+    const ci = n => headers.findIndex(h => h.includes(n));
+
+    const colEmpresa  = ci('empresa');
+    const colNombre   = ci('nombre');
+    const colTipo     = ci('tipo');
+    const colMes      = ci('mes');
+    const colAntig    = ci('antig');
+    const colSalario  = ci('salario');
+    const colVacDias  = ci('dias de vacaciones');
+    const colAguinaldo= ci('aguinaldo');
+    const colVacMonto = ci('vacaciones');
+    const colPreaviso = ci('preaviso');
+    const colCesantia = ci('cesantia');
+    const colTotal    = ci('total');
+    const colAnio     = ci('año');
+
+    LIQUIDACIONES = rows.slice(1)
+      .filter(r => colEmpresa >= 0 && (r[colEmpresa]||'').toLowerCase().includes('joystick'))
+      .map(r => ({
+        nombre:    (r[colNombre]  ||'').trim(),
+        tipo:      (r[colTipo]    ||'').trim(),
+        mes:       (r[colMes]     ||'').trim().toLowerCase(),
+        anio:      parseInt(r[colAnio]||'0'),
+        antiguedad:(r[colAntig]   ||'').trim(),
+        salario:   parseSal(r[colSalario]  ||'0'),
+        aguinaldo: parseSal(r[colAguinaldo]||'0'),
+        vacaciones:parseSal(r[colVacMonto] ||'0'),
+        preaviso:  parseSal(r[colPreaviso] ||'0'),
+        cesantia:  parseSal(r[colCesantia] ||'0'),
+        total:     parseSal(r[colTotal]    ||'0'),
+      }))
+      .filter(r => r.nombre && r.total > 0);
+
+    console.log(`[LIQUIDACIONES] ${LIQUIDACIONES.length} registros cargados`);
+  } catch(e){
+    console.warn('[LIQUIDACIONES] Error:', e);
+  }
+}
+
+
   const url = YEAR_URL[year];
   const r = await fetch(url);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -899,7 +990,7 @@ async function loadData(){
   ldBar(82); ldMsg('Construyendo personas únicas...');
   buildPersonas();
   
-  await Promise.all([loadRevenue(), loadAumentos()]);
+  await Promise.all([loadRevenue(), loadAumentos(), loadLiquidaciones()]);
 
   const total=Object.keys(PERSONAS).length;
   if(!total){
@@ -1215,6 +1306,7 @@ function renderAll(){
   renderIA();
   renderFlujo();
   renderAumentos();
+  renderLiquidaciones();
   renderAlertas();
   animFI();
 }
@@ -1912,6 +2004,125 @@ function renderAumentos(){
     const ps = panel.querySelector('.ps');
     if(ps) ps.textContent = '% del total de planilla por departamento';
   }
+}
+
+function renderLiquidaciones(){
+  const liq = LIQUIDACIONES;
+  // Filtrar por años seleccionados
+  const data = liq.filter(r => SEL_YEARS.includes(r.anio) || r.anio===0);
+  const label = SEL_YEARS.length===1 ? String(SEL_YEARS[0]) : SEL_YEARS.join(' + ');
+
+  // KPIs
+  const totalMonto = data.reduce((s,r)=>s+r.total,0);
+  const prom = data.length ? totalMonto/data.length : 0;
+  const maxRow = data.reduce((a,b)=>b.total>a.total?b:a, {total:0,nombre:''});
+
+  el('liqTotal').textContent   = '₡'+fmtN(totalMonto);
+  el('liqTotalCtx').textContent= `${data.length} liquidaciones`;
+  el('liqProm').textContent    = '₡'+fmtN(prom);
+  el('liqPromCtx').textContent = 'por persona';
+  el('liqMax').textContent     = '₡'+fmtN(maxRow.total);
+  el('liqMaxCtx').textContent  = maxRow.nombre || '—';
+  el('liqCount').textContent   = data.length;
+
+  // Badge años
+  el('badgeLiqMes').textContent  = label;
+  el('badgeLiqComp').textContent = label;
+
+  // ── Gráfico 1: Total por mes ──────────────────────────────
+  const mesIdx = m => ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'].indexOf(m.substring(0,3));
+  const totMes = Array(12).fill(0);
+  data.forEach(r=>{ const mi=mesIdx(r.mes); if(mi>=0) totMes[mi]+=r.total; });
+
+  if(CHARTS.liqMes){CHARTS.liqMes.destroy();delete CHARTS.liqMes;}
+  const ctxM=document.getElementById('cLiqMes'); if(!ctxM) return;
+  CHARTS.liqMes=new Chart(ctxM,{
+    type:'bar',
+    data:{labels:MOL,datasets:[{
+      label:'Total liquidado',data:totMes,
+      backgroundColor:'#3b82f688',borderColor:'#3b82f6',
+      borderWidth:1,borderRadius:4
+    }]},
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,legend:{display:false},
+        tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>' ₡'+fmtN(ctx.raw)}}
+      },
+      scales:{
+        x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        y:{beginAtZero:true,ticks:{color:'#4a5a78',font:{size:9},callback:v=>'₡'+fmtN(v)},grid:{color:'#161f30'},border:{color:'transparent'}}
+      }
+    }
+  });
+
+  // ── Gráfico 2: Costo por tipo de salida ──────────────────
+  const porTipo={};
+  data.forEach(r=>{ const t=r.tipo||'N/D'; porTipo[t]=(porTipo[t]||0)+r.total; });
+  const tipoSort=Object.entries(porTipo).sort((a,b)=>b[1]-a[1]);
+
+  if(CHARTS.liqTipo){CHARTS.liqTipo.destroy();delete CHARTS.liqTipo;}
+  const ctxT=document.getElementById('cLiqTipo'); if(!ctxT) return;
+  CHARTS.liqTipo=new Chart(ctxT,{
+    type:'doughnut',
+    data:{labels:tipoSort.map(x=>x[0]),datasets:[{
+      data:tipoSort.map(x=>x[1]),
+      backgroundColor:PAL.slice(0,tipoSort.length).map(c=>c+'cc'),
+      borderColor:PAL.slice(0,tipoSort.length),borderWidth:1
+    }]},
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,
+        legend:{display:true,position:'bottom',align:'center',
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,
+            generateLabels:chart=>chart.data.datasets[0].data.map((v,i)=>({
+              text:`${chart.data.labels[i]}: ₡${fmtN(v)}`,
+              fontColor:'#dde4f0',
+              fillStyle:chart.data.datasets[0].backgroundColor[i],
+              strokeStyle:'transparent',lineWidth:0,hidden:false,index:i
+            }))
+          }
+        },
+        tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>` ₡${fmtN(ctx.raw)}`}}
+      }
+    }
+  });
+
+  // ── Gráfico 3: Desglose por componente mensual ────────────
+  const comps={aguinaldo:Array(12).fill(0),vacaciones:Array(12).fill(0),preaviso:Array(12).fill(0),cesantia:Array(12).fill(0)};
+  data.forEach(r=>{ const mi=mesIdx(r.mes); if(mi<0) return; comps.aguinaldo[mi]+=r.aguinaldo; comps.vacaciones[mi]+=r.vacaciones; comps.preaviso[mi]+=r.preaviso; comps.cesantia[mi]+=r.cesantia; });
+  const compDs=[
+    {label:'Aguinaldo', data:comps.aguinaldo, color:'#fbbf24'},
+    {label:'Vacaciones',data:comps.vacaciones,color:'#4ade80'},
+    {label:'Preaviso',  data:comps.preaviso,  color:'#38bdf8'},
+    {label:'Cesantía',  data:comps.cesantia,  color:'#a78bfa'},
+  ];
+
+  if(CHARTS.liqComp){CHARTS.liqComp.destroy();delete CHARTS.liqComp;}
+  const ctxC=document.getElementById('cLiqComp'); if(!ctxC) return;
+  CHARTS.liqComp=new Chart(ctxC,{
+    type:'bar',
+    data:{labels:MOL,datasets:compDs.map(s=>({
+      label:s.label,data:s.data,
+      backgroundColor:s.color+'99',borderColor:s.color,
+      borderWidth:1,borderRadius:3,stack:'comp'
+    }))},
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,
+        legend:{display:true,position:'top',align:'end',
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,
+            generateLabels:chart=>chart.data.datasets.map((ds,i)=>({
+              text:ds.label,fontColor:'#dde4f0',
+              fillStyle:ds.borderColor,strokeStyle:'transparent',
+              lineWidth:0,hidden:false,datasetIndex:i
+            }))
+          }
+        },
+        tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ₡${fmtN(ctx.raw)}`}}
+      },
+      scales:{
+        x:{stacked:true,ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        y:{stacked:true,beginAtZero:true,ticks:{color:'#4a5a78',font:{size:9},callback:v=>'₡'+fmtN(v)},grid:{color:'#161f30'},border:{color:'transparent'}}
+      }
+    }
+  });
 }
 
 function renderAlertas(){
