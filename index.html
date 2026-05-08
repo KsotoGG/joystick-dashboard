@@ -662,7 +662,9 @@ async function loadLiquidaciones(){
     const colEmpresa  = ci('empresa');
     const colNombre   = ci('nombre');
     const colTipo     = ci('tipo');
-    const colMes      = ci('mes');
+    const colMes      = headers.findIndex(h => h.includes('mes') && h.includes('salida')) !== -1
+      ? headers.findIndex(h => h.includes('mes') && h.includes('salida'))
+      : ci('mes de salida') !== -1 ? ci('mes de salida') : ci('mes');
     const colAntig    = ci('antig');
     const colSalario  = ci('salario');
     const colAguinaldo= ci('aguinaldo');
@@ -673,6 +675,7 @@ async function loadLiquidaciones(){
     const colAnio     = headers.findIndex(h => h==='año' || h==='anio' || h==='year');
 
     console.log('[LIQ] headers:', headers);
+    console.log('[LIQ] colMes idx:', colMes, '=', headers[colMes]);
 
     // Parsear mes y año desde un campo — acepta: "Enero 2025", "1/2025", "2025-01", número, etc.
     const parseMesAnio = raw => {
@@ -2048,70 +2051,51 @@ function renderAumentos(){
 
 function renderLiquidaciones(){
   const liq = LIQUIDACIONES;
-  // Debug: ver años disponibles en los datos
-  console.log('[LIQ DEBUG] años en LIQUIDACIONES:', [...new Set(liq.map(r=>r.anio))], '| SEL_YEARS:', SEL_YEARS);
-  // Filtrar por años — si no hay match (ej: años en datos no coinciden), mostrar todos
-  let data = liq.filter(r => r.anio===0 || SEL_YEARS.includes(r.anio));
-  if(!data.length) data = [...liq]; // fallback: mostrar todos
-  if(data.length) console.log('[LIQ DEBUG] muestra:', data.slice(0,3).map(r=>({mes:r.mes,anio:r.anio,total:r.total})));
+  const anosDisp = [...new Set(liq.map(r=>r.anio))].filter(y=>y>0).sort();
+  const data = liq;
+  const label = anosDisp.join(' · ') || '—';
 
-  const label = SEL_YEARS.length===1 ? String(SEL_YEARS[0]) : SEL_YEARS.join(' + ');
-
-  // KPIs
   const totalMonto = data.reduce((s,r)=>s+r.total,0);
   const prom = data.length ? totalMonto/data.length : 0;
   const maxRow = data.reduce((a,b)=>b.total>a.total?b:a, {total:0,nombre:''});
 
-  document.getElementById('liqTotal').textContent   = '₡'+fmtN(totalMonto);
-  document.getElementById('liqTotalCtx').textContent= `${data.length} liquidaciones`;
-  document.getElementById('liqProm').textContent    = '₡'+fmtN(prom);
-  document.getElementById('liqPromCtx').textContent = 'por persona';
-  document.getElementById('liqMax').textContent     = '₡'+fmtN(maxRow.total);
-  document.getElementById('liqMaxCtx').textContent  = maxRow.nombre || '—';
-  document.getElementById('liqCount').textContent   = data.length;
+  document.getElementById('liqTotal').textContent    = '₡'+fmtN(totalMonto);
+  document.getElementById('liqTotalCtx').textContent = `${data.length} liquidaciones`;
+  document.getElementById('liqProm').textContent     = '₡'+fmtN(prom);
+  document.getElementById('liqPromCtx').textContent  = 'por persona';
+  document.getElementById('liqMax').textContent      = '₡'+fmtN(maxRow.total);
+  document.getElementById('liqMaxCtx').textContent   = maxRow.nombre || '—';
+  document.getElementById('liqCount').textContent    = data.length;
+  document.getElementById('badgeLiqMes').textContent  = label;
+  document.getElementById('badgeLiqComp').textContent = label;
 
-  // Parsear mes flexible: número (1-12), nombre corto o largo en español
-  const mesIdx = m => {
-    if(!m) return -1;
-    const s = String(m).toLowerCase().trim();
-    // Número directo
-    const n = parseInt(s);
-    if(!isNaN(n) && n>=1 && n<=12) return n-1;
-    // Nombre corto o largo
-    const names = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-    const full  = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-    const si = names.findIndex(x=>s.startsWith(x));
-    if(si>=0) return si;
-    return full.findIndex(x=>s.startsWith(x));
-  };
-  const totMes = Array(12).fill(0);
-  data.forEach(r=>{ const mi=mesIdx(r.mes); if(mi>=0) totMes[mi]+=r.total; });
-
+  // Gráfico 1: Total acumulado por año
+  const totAnio = anosDisp.map(y => liq.filter(r=>r.anio===y).reduce((s,r)=>s+r.total,0));
   if(CHARTS.liqMes){CHARTS.liqMes.destroy();delete CHARTS.liqMes;}
   const ctxM=document.getElementById('cLiqMes'); if(!ctxM) return;
   CHARTS.liqMes=new Chart(ctxM,{
     type:'bar',
-    data:{labels:MOL,datasets:[{
-      label:'Total liquidado',data:totMes,
-      backgroundColor:'#3b82f688',borderColor:'#3b82f6',
-      borderWidth:1,borderRadius:4
+    data:{labels:anosDisp.map(String),datasets:[{
+      label:'Total liquidado',data:totAnio,
+      backgroundColor:anosDisp.map((_,i)=>PAL[i%PAL.length]+'99'),
+      borderColor:anosDisp.map((_,i)=>PAL[i%PAL.length]),
+      borderWidth:1,borderRadius:6,barPercentage:.5
     }]},
     options:{...BOPTS(),
       plugins:{...BOPTS().plugins,legend:{display:false},
         tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>' ₡'+fmtN(ctx.raw)}}
       },
       scales:{
-        x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        x:{ticks:{color:'#4a5a78',font:{size:11}},grid:{color:'#161f30'},border:{color:'transparent'}},
         y:{beginAtZero:true,ticks:{color:'#4a5a78',font:{size:9},callback:v=>'₡'+fmtN(v)},grid:{color:'#161f30'},border:{color:'transparent'}}
       }
     }
   });
 
-  // ── Gráfico 2: Costo por tipo de salida ──────────────────
+  // Gráfico 2: Costo por tipo de salida
   const porTipo={};
   data.forEach(r=>{ const t=r.tipo||'N/D'; porTipo[t]=(porTipo[t]||0)+r.total; });
   const tipoSort=Object.entries(porTipo).sort((a,b)=>b[1]-a[1]);
-
   if(CHARTS.liqTipo){CHARTS.liqTipo.destroy();delete CHARTS.liqTipo;}
   const ctxT=document.getElementById('cLiqTipo'); if(!ctxT) return;
   CHARTS.liqTipo=new Chart(ctxT,{
@@ -2123,11 +2107,10 @@ function renderLiquidaciones(){
     }]},
     options:{...BOPTS(),
       plugins:{...BOPTS().plugins,
-        legend:{display:true,position:'bottom',align:'center',
+        legend:{display:true,position:'bottom',
           labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,
             generateLabels:chart=>chart.data.datasets[0].data.map((v,i)=>({
-              text:`${chart.data.labels[i]}: ₡${fmtN(v)}`,
-              fontColor:'#dde4f0',
+              text:`${chart.data.labels[i]}: ₡${fmtN(v)}`,fontColor:'#dde4f0',
               fillStyle:chart.data.datasets[0].backgroundColor[i],
               strokeStyle:'transparent',lineWidth:0,hidden:false,index:i
             }))
@@ -2138,46 +2121,43 @@ function renderLiquidaciones(){
     }
   });
 
-  // ── Gráfico 3: Desglose por componente mensual ────────────
-  const comps={aguinaldo:Array(12).fill(0),vacaciones:Array(12).fill(0),preaviso:Array(12).fill(0),cesantia:Array(12).fill(0)};
-  data.forEach(r=>{ const mi=mesIdx(r.mes); if(mi<0) return; comps.aguinaldo[mi]+=r.aguinaldo; comps.vacaciones[mi]+=r.vacaciones; comps.preaviso[mi]+=r.preaviso; comps.cesantia[mi]+=r.cesantia; });
-  const compDs=[
-    {label:'Aguinaldo', data:comps.aguinaldo, color:'#fbbf24'},
-    {label:'Vacaciones',data:comps.vacaciones,color:'#4ade80'},
-    {label:'Preaviso',  data:comps.preaviso,  color:'#38bdf8'},
-    {label:'Cesantía',  data:comps.cesantia,  color:'#a78bfa'},
+  // Gráfico 3: Desglose por componente POR AÑO (barras apiladas)
+  const compCfg=[
+    {label:'Aguinaldo', color:'#fbbf24',key:'aguinaldo'},
+    {label:'Vacaciones',color:'#4ade80', key:'vacaciones'},
+    {label:'Preaviso',  color:'#38bdf8', key:'preaviso'},
+    {label:'Cesantía',  color:'#a78bfa', key:'cesantia'},
   ];
-
+  const compDs=compCfg.map(cfg=>({
+    label:cfg.label,
+    data:anosDisp.map(y=>liq.filter(r=>r.anio===y).reduce((s,r)=>s+r[cfg.key],0)),
+    backgroundColor:cfg.color+'99',borderColor:cfg.color,
+    borderWidth:1,borderRadius:3,stack:'comp'
+  }));
   if(CHARTS.liqComp){CHARTS.liqComp.destroy();delete CHARTS.liqComp;}
   const ctxC=document.getElementById('cLiqComp'); if(!ctxC) return;
   CHARTS.liqComp=new Chart(ctxC,{
     type:'bar',
-    data:{labels:MOL,datasets:compDs.map(s=>({
-      label:s.label,data:s.data,
-      backgroundColor:s.color+'99',borderColor:s.color,
-      borderWidth:1,borderRadius:3,stack:'comp'
-    }))},
+    data:{labels:anosDisp.map(String),datasets:compDs},
     options:{...BOPTS(),
       plugins:{...BOPTS().plugins,
         legend:{display:true,position:'top',align:'end',
           labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,
             generateLabels:chart=>chart.data.datasets.map((ds,i)=>({
-              text:ds.label,fontColor:'#dde4f0',
-              fillStyle:ds.borderColor,strokeStyle:'transparent',
-              lineWidth:0,hidden:false,datasetIndex:i
+              text:ds.label,fontColor:'#dde4f0',fillStyle:ds.borderColor,
+              strokeStyle:'transparent',lineWidth:0,hidden:false,datasetIndex:i
             }))
           }
         },
         tooltip:{...BOPTS().plugins.tooltip,callbacks:{label:ctx=>` ${ctx.dataset.label}: ₡${fmtN(ctx.raw)}`}}
       },
       scales:{
-        x:{stacked:true,ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        x:{stacked:true,ticks:{color:'#4a5a78',font:{size:11}},grid:{color:'#161f30'},border:{color:'transparent'}},
         y:{stacked:true,beginAtZero:true,ticks:{color:'#4a5a78',font:{size:9},callback:v=>'₡'+fmtN(v)},grid:{color:'#161f30'},border:{color:'transparent'}}
       }
     }
   });
 }
-
 function renderAlertas(){
   const F=FILTERED;
   const activos=F.filter(p=>p.activo).length||1;
