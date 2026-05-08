@@ -346,6 +346,16 @@ option{background:var(--bg3)}
       <div class="ph"><div><div class="pt">Tasa de Rotación Mensual</div><div class="ps">% salidas / headcount activo · Meta &lt;5%</div></div></div>
       <div style="height:220px"><canvas id="cRot"></canvas></div>
     </div>
+    <div class="panel c3">
+      <div class="ph"><div><div class="pt">Rotación Voluntaria</div><div class="ps">Renuncia · Traslado · Pensión</div></div><div class="pb" id="badgeRotVol">—</div></div>
+      <div style="height:220px"><canvas id="cRotVol"></canvas></div>
+    </div>
+    <div class="panel c3">
+      <div class="ph"><div><div class="pt">Rotación Inducida</div><div class="ps">Despido con y sin resp. patronal</div></div><div class="pb" id="badgeRotInd">—</div></div>
+      <div style="height:220px"><canvas id="cRotInd"></canvas></div>
+    </div>
+  </div>
+  <div class="cg">
     <div class="panel c6">
       <div class="ph"><div><div class="pt">Motivo de Salida</div></div></div>
       <div style="height:220px"><canvas id="cMot"></canvas></div>
@@ -1343,7 +1353,7 @@ function renderAll(){
   renderForm(ACT_FORM);
   renderUb(ACT_UB);
   renderPuestos();
-  renderRot(); renderMot(); renderRaz(); renderDest();
+  renderRot(); renderRotVol(); renderRotInd(); renderMot(); renderRaz(); renderDest();
   renderHM();
   renderPlan();
   renderIA();
@@ -1798,7 +1808,67 @@ function renderRot(){
   });
 }
 
-function renderMot(){
+const MOTIVOS_VOLUNTARIA = ['renuncia','traslado','pensión','pension','jubilacion','jubilación'];
+const MOTIVOS_INDUCIDA   = ['despido'];
+function clasificaMotivo(m){
+  if(!m) return null;
+  const ml=m.toLowerCase();
+  if(MOTIVOS_VOLUNTARIA.some(k=>ml.includes(k))) return 'voluntaria';
+  if(MOTIVOS_INDUCIDA.some(k=>ml.includes(k)))   return 'inducida';
+  return null;
+}
+
+function mkRotLine(canvasId, badgeId, filterFn, colorFn){
+  const F=FILTERED;
+  const lastY=Math.max(...SEL_YEARS);
+  const label=SEL_YEARS.length===1?String(SEL_YEARS[0]):SEL_YEARS.join(' + ');
+  if(badgeId) document.getElementById(badgeId).textContent=label;
+  const ds=SEL_YEARS.map(y=>{
+    const hcData=Array.from({length:12},(_,m)=>hc(F,y,m));
+    const salData=Array.from({length:12},(_,m)=>F.filter(p=>p.salidaDate&&p.salidaDate.y===y&&p.salidaDate.m===m&&filterFn(p)).length);
+    const rates=hcData.map((h,i)=>h>0?+(salData[i]/h*100).toFixed(2):0);
+    return {label:String(y),data:rates,borderColor:colorFn(y),bw:y===lastY?2:1.5};
+  });
+  if(CHARTS[canvasId]){CHARTS[canvasId].destroy();delete CHARTS[canvasId];}
+  CHARTS[canvasId]=new Chart(document.getElementById(canvasId),{
+    type:'line',
+    data:{labels:MOL,datasets:ds.map(s=>({
+      label:s.label,data:s.data,borderColor:s.borderColor,backgroundColor:'transparent',
+      fill:false,tension:.4,borderWidth:s.bw,pointRadius:2,pointBackgroundColor:s.borderColor
+    }))},
+    options:{...BOPTS(),
+      plugins:{...BOPTS().plugins,
+        legend:{display:SEL_YEARS.length>1,position:'top',align:'end',
+          labels:{color:'#dde4f0',font:{size:9},boxWidth:9,padding:8,
+            generateLabels:chart=>chart.data.datasets.map((ds,i)=>({
+              text:ds.label,fontColor:'#dde4f0',fillStyle:ds.borderColor,
+              strokeStyle:'transparent',lineWidth:0,hidden:false,datasetIndex:i
+            }))
+          }
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}},
+        y:{beginAtZero:true,ticks:{color:'#4a5a78',font:{size:9}},grid:{color:'#161f30'},border:{color:'transparent'}}
+      }
+    }
+  });
+}
+
+function renderRotVol(){
+  mkRotLine('cRotVol','badgeRotVol',
+    p=>clasificaMotivo(p.motivoSalida)==='voluntaria',
+    y=>YCOL_ING[y]||YCOL[y]
+  );
+}
+function renderRotInd(){
+  mkRotLine('cRotInd','badgeRotInd',
+    p=>clasificaMotivo(p.motivoSalida)==='inducida',
+    y=>YCOL_SAL[y]||'#f87171'
+  );
+}
+
+
   const c=countBy(FILTERED.filter(p=>p.motivoSalida&&p.motivoSalida!=='N/A'),'motivoSalida');
   const s=Object.entries(c).sort((a,b)=>b[1]-a[1]);
   if(!s.length){emptyChart('cMot');return;}
