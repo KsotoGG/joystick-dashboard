@@ -1869,6 +1869,7 @@ function renderRotInd(){
 }
 
 
+function renderMot(){
   const c=countBy(FILTERED.filter(p=>p.motivoSalida&&p.motivoSalida!=='N/A'),'motivoSalida');
   const s=Object.entries(c).sort((a,b)=>b[1]-a[1]);
   if(!s.length){emptyChart('cMot');return;}
